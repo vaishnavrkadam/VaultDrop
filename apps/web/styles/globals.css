@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+body {
+  background-color: #FCFCFC; /* paper */
+  color: #171717;
+  overflow-x: hidden;
+  font-family: var(--font-sans);
+}
+
+.grid-dots {
+  background-image: radial-gradient(#e5e5e5 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.grid-dots-dark {
+  background-image: radial-gradient(#262626 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Custom scrollbars for technical CAD look */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d4d4d4;
+  border-radius: 0px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a3a3a3;
+}
