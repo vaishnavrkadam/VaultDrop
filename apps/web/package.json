@@ -14,7 +14,9 @@
     "framer-motion": "^11.0.3",
     "lucide-react": "^0.323.0",
     "qrcode": "^1.5.3",
-    "canvas-confetti": "^1.9.2"
+    "canvas-confetti": "^1.9.2",
+    "@vaultdrop/ui": "*",
+    "@vaultdrop/crypto": "*"
   },
   "devDependencies": {
     "@types/node": "^20.11.24",
