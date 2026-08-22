@@ -1,1 +1,38 @@
+# Build Outputs
+dist/
+build/
+.next/
+out/
+.turbo/
+
+# Dependencies
 node_modules/
+jspm_packages/
+web_modules/
+
+# Databases & Files
+*.sqlite
+*.sqlite3
+*.db
+*.log
+uploads/
+
+# Environment Configurations
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.production
+.env.development
+
+# IDE & OS Files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
