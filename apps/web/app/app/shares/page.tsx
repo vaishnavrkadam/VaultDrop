@@ -10,6 +10,8 @@ interface LocalShare {
   shareType: 'text' | 'file';
   accessMode: 'anonymous' | 'password';
   expiry: string;
+  expiresAt?: number;
+  keyHex?: string;
   createdAt: string;
 }
 
@@ -23,7 +25,15 @@ export default function MySharesPage() {
       const stored = localStorage.getItem('vaultdrop_created_shares');
       if (stored) {
         try {
-          setShares(JSON.parse(stored));
+          const parsed = JSON.parse(stored) as LocalShare[];
+          const now = Date.now();
+          // Filter out expired shares
+          const active = parsed.filter(s => !s.expiresAt || s.expiresAt > now);
+          setShares(active);
+          
+          if (active.length !== parsed.length) {
+            localStorage.setItem('vaultdrop_created_shares', JSON.stringify(active));
+          }
         } catch (e) {
           console.error(e);
         }
@@ -135,7 +145,7 @@ export default function MySharesPage() {
                           ) : 'URL'}
                         </td>
                         <td className="p-4 text-right flex justify-end gap-2">
-                          <Link href={`/s/${s.id}`} target="_blank">
+                          <Link href={s.accessMode === 'password' ? `/s/${s.id}` : `/s/${s.id}#key=${s.keyHex}`} target="_blank">
                             <Button variant="secondary" size="sm" className="px-2 py-1">
                               <Eye className="w-3.5 h-3.5" />
                             </Button>

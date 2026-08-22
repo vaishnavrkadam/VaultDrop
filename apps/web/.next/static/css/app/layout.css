@@ -560,6 +560,9 @@ video {
 .mt-2 {
   margin-top: 0.5rem;
 }
+.mt-3 {
+  margin-top: 0.75rem;
+}
 .block {
   display: block;
 }
@@ -583,6 +586,9 @@ video {
 }
 .h-16 {
   height: 4rem;
+}
+.h-2 {
+  height: 0.5rem;
 }
 .h-2\.5 {
   height: 0.625rem;
@@ -622,6 +628,9 @@ video {
 }
 .max-h-60 {
   max-height: 15rem;
+}
+.max-h-\[300px\] {
+  max-height: 300px;
 }
 .max-h-\[400px\] {
   max-height: 400px;
@@ -743,6 +752,9 @@ video {
 }
 .grid-cols-1 {
   grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+.grid-cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .grid-cols-4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1054,6 +1066,9 @@ video {
 .pt-3 {
   padding-top: 0.75rem;
 }
+.pt-4 {
+  padding-top: 1rem;
+}
 .text-left {
   text-align: left;
 }
@@ -1086,6 +1101,9 @@ video {
 }
 .text-\[11px\] {
   font-size: 11px;
+}
+.text-\[8px\] {
+  font-size: 8px;
 }
 .text-\[9px\] {
   font-size: 9px;
@@ -1263,6 +1281,9 @@ video {
 .duration-150 {
   transition-duration: 150ms;
 }
+.duration-500 {
+  transition-duration: 500ms;
+}
 
 :root {
   --font-sans: 'Inter', system-ui, sans-serif;
@@ -1317,6 +1338,11 @@ body {
 .hover\:bg-\[\#DC2626\]:hover {
   --tw-bg-opacity: 1;
   background-color: rgb(220 38 38 / var(--tw-bg-opacity, 1));
+}
+
+.hover\:bg-neutral-200:hover {
+  --tw-bg-opacity: 1;
+  background-color: rgb(229 229 229 / var(--tw-bg-opacity, 1));
 }
 
 .hover\:bg-neutral-50:hover {

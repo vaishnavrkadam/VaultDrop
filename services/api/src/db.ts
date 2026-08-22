@@ -45,9 +45,32 @@ export function initDb(): Promise<void> {
           created_at INTEGER NOT NULL,
           FOREIGN KEY (share_id) REFERENCES shares(id) ON DELETE CASCADE
         )
+      `);
+
+      // 3. Create threshold_policies table
+      db.run(`
+        CREATE TABLE IF NOT EXISTS threshold_policies (
+          share_id TEXT PRIMARY KEY,
+          threshold INTEGER NOT NULL,
+          participant_count INTEGER NOT NULL,
+          FOREIGN KEY (share_id) REFERENCES shares(id) ON DELETE CASCADE
+        )
+      `);
+
+      // 4. Create threshold_shares table
+      db.run(`
+        CREATE TABLE IF NOT EXISTS threshold_shares (
+          id TEXT PRIMARY KEY,
+          share_id TEXT NOT NULL,
+          share_index INTEGER NOT NULL,
+          encrypted_secret_share TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          FOREIGN KEY (share_id) REFERENCES shares(id) ON DELETE CASCADE,
+          UNIQUE(share_id, share_index)
+        )
       `, (err) => {
         if (err) {
-          console.error('Failed to create comments table:', err);
+          console.error('Failed to create threshold tables:', err);
           return reject(err);
         }
         console.log('✓ SQLite database initialized successfully.');

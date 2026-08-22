@@ -44,7 +44,9 @@ app.post('/v1/shares', async (req, res) => {
       wrappedContentKey,
       salt,
       expiry,
-      fileMeta
+      fileMeta,
+      threshold,
+      participantCount
     } = req.body;
 
     if (!shareType || !accessMode || !ciphertext || !nonce || !tag) {
@@ -63,6 +65,12 @@ app.post('/v1/shares', async (req, res) => {
       else if (expiry === '1d') durationMs = 24 * 60 * 60 * 1000;
       else if (expiry === '7d') durationMs = 7 * 24 * 60 * 60 * 1000;
       else if (expiry === '30d') durationMs = 30 * 24 * 60 * 60 * 1000;
+      else if (typeof expiry === 'string' && expiry.startsWith('custom:')) {
+        const mins = parseInt(expiry.split(':')[1], 10);
+        if (!isNaN(mins) && mins > 0) {
+          durationMs = mins * 60 * 1000;
+        }
+      }
       expiresAt = createdAt + durationMs;
     }
 
@@ -89,6 +97,14 @@ app.post('/v1/shares', async (req, res) => {
         createdAt
       ]
     );
+
+    if (accessMode === 'threshold' && threshold && participantCount) {
+      await dbRun(
+        'INSERT INTO threshold_policies (share_id, threshold, participant_count) VALUES (?, ?, ?)',
+        [shareId, parseInt(threshold, 10), parseInt(participantCount, 10)]
+      );
+      console.log(`[THRESHOLD POLICY CREATED] Share ID: ${shareId}, Threshold: ${threshold}/${participantCount}`);
+    }
 
     console.log(`[SHARE CREATED] ID: ${shareId}, Expiry: ${expiry}, Burn: ${burnAfterReading}`);
     res.status(201).json({ id: shareId });
@@ -118,13 +134,30 @@ app.get('/v1/shares/:id/config', async (req, res) => {
       return res.status(404).send('Share has been burned.');
     }
 
+    let submittedCount = 0;
+    let threshold = 0;
+    let participantCount = 0;
+
+    if (share.access_mode === 'threshold') {
+      const policy = await dbGet<any>('SELECT * FROM threshold_policies WHERE share_id = ?', [id]);
+      if (policy) {
+        threshold = policy.threshold;
+        participantCount = policy.participant_count;
+        const submitted = await dbAll<any>('SELECT * FROM threshold_shares WHERE share_id = ?', [id]);
+        submittedCount = submitted.length;
+      }
+    }
+
     res.json({
       id: share.id,
       accessMode: share.access_mode,
       burnAfterReading: share.burn_after_reading === 1,
       salt: share.salt,
       wrappedContentKey: share.wrapped_content_key,
-      protectedViewing: share.share_type === 'text' // Auto-protect text shares with watermarks
+      protectedViewing: share.share_type === 'text', // Auto-protect text shares with watermarks
+      submittedCount,
+      threshold,
+      participantCount
     });
   } catch (e) {
     console.error(e);
@@ -266,6 +299,83 @@ app.get('/v1/shares/:id/comments', async (req, res) => {
       nonce: c.nonce,
       tag: c.tag,
       createdAt: c.created_at
+    })));
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// 8. Submit a Shamir secret share to the threshold lobby
+app.post('/v1/shares/:id/submit-share', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { shareIndex, secretShare } = req.body;
+
+    if (shareIndex === undefined || !secretShare) {
+      return res.status(400).send('Missing shareIndex or secretShare.');
+    }
+
+    const policy = await dbGet<any>('SELECT * FROM threshold_policies WHERE share_id = ?', [id]);
+    if (!policy) {
+      return res.status(404).send('No threshold policy found for this share.');
+    }
+
+    const shareIdDb = uuidv4();
+    // Insert and ignore duplicate index submissions
+    if (parseInt(shareIndex, 10) >= 0) {
+      try {
+        await dbRun(
+          'INSERT INTO threshold_shares (id, share_id, share_index, encrypted_secret_share, created_at) VALUES (?, ?, ?, ?, ?)',
+          [shareIdDb, id, parseInt(shareIndex, 10), secretShare, Date.now()]
+        );
+        console.log(`[SHARE SUBMITTED] Share ID: ${id}, Index: ${shareIndex}`);
+      } catch (e) {
+        // Duplicate share_index matches, ignore or update
+        console.log(`[SHARE DUPLICATE] Share ID: ${id}, Index: ${shareIndex} already submitted`);
+      }
+    }
+
+    // Get current submitted count
+    const submitted = await dbAll<any>('SELECT * FROM threshold_shares WHERE share_id = ?', [id]);
+    const submittedCount = submitted.length;
+    const isCompleted = submittedCount >= policy.threshold;
+
+    res.json({
+      status: isCompleted ? 'completed' : 'pending',
+      submittedCount,
+      threshold: policy.threshold,
+      participantCount: policy.participant_count
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// 9. Retrieve all submitted shares (only released once threshold is met)
+app.get('/v1/shares/:id/shares', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const policy = await dbGet<any>('SELECT * FROM threshold_policies WHERE share_id = ?', [id]);
+    if (!policy) {
+      return res.status(404).send('No threshold policy found.');
+    }
+
+    const submitted = await dbAll<any>('SELECT * FROM threshold_shares WHERE share_id = ?', [id]);
+    const submittedCount = submitted.length;
+
+    if (submittedCount < policy.threshold) {
+      return res.status(403).json({
+        error: 'Threshold not met.',
+        submittedCount,
+        threshold: policy.threshold
+      });
+    }
+
+    res.json(submitted.map(s => ({
+      shareIndex: s.share_index,
+      secretShare: s.encrypted_secret_share
     })));
   } catch (e) {
     console.error(e);

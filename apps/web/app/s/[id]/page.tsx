@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { Button, Input, GridLine } from '@vaultdrop/ui';
-import { CryptoProvider } from '@vaultdrop/crypto';
+import { CryptoProvider, ShamirSSS } from '@vaultdrop/crypto';
 import { Shield, Key, EyeOff, FileText, Download, MessageSquare, Trash2, ShieldAlert } from 'lucide-react';
 
 interface Comment {
@@ -42,14 +42,29 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
   const [isBurn, setIsBurn] = useState(false);
   const [isProtected, setIsProtected] = useState(false); // Enable diagonal watermark for secure text paste
 
-  // Read hash fragment for CEK (for anonymous/URL sharing)
+  // Read hash fragment for CEK / Share split
   const [cekHexFromUrl, setCekHexFromUrl] = useState('');
+  const [shareIndex, setShareIndex] = useState<number | null>(null);
+  const [shareHex, setShareHex] = useState('');
+  
+  // Threshold state
+  const [isThreshold, setIsThreshold] = useState(false);
+  const [thresholdStatus, setThresholdStatus] = useState<'idle' | 'submitting' | 'waiting' | 'ready' | 'error'>('idle');
+  const [submittedCount, setSubmittedCount] = useState(0);
+  const [requiredThreshold, setRequiredThreshold] = useState(0);
+  const [lobbyParticipants, setLobbyParticipants] = useState(0);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash;
       if (hash.startsWith('#key=')) {
         setCekHexFromUrl(hash.substring(5));
+      } else if (hash.startsWith('#share=')) {
+        const parts = hash.substring(7).split(':');
+        if (parts.length === 2) {
+          setShareIndex(parseInt(parts[0], 10));
+          setShareHex(parts[1]);
+        }
       }
     }
     fetchShareConfig();
@@ -70,6 +85,7 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
       setRequiresPassword(data.accessMode === 'password');
       setIsBurn(data.burnAfterReading);
       setIsProtected(data.protectedViewing || false);
+      setIsThreshold(data.accessMode === 'threshold');
       
       // Auto-decrypt if key is in URL and no password is required
       if (data.accessMode === 'anonymous' && window.location.hash.startsWith('#key=')) {
@@ -77,11 +93,124 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
         if (urlKey) {
           triggerDecryption(Buffer.from(urlKey, 'hex'));
         }
+      } else if (data.accessMode === 'threshold') {
+        setSubmittedCount(data.submittedCount);
+        setRequiredThreshold(data.threshold);
+        setLobbyParticipants(data.participantCount);
+
+        const hash = window.location.hash;
+        if (hash.startsWith('#share=')) {
+          const parts = hash.substring(7).split(':');
+          if (parts.length === 2) {
+            const idx = parseInt(parts[0], 10);
+            const hex = parts[1];
+            submitThresholdShare(idx, hex);
+          } else {
+            setErrorMsg('Invalid recipient share link fragment.');
+          }
+        } else {
+          // No share key in URL - this is a visitor or creator observing the lobby progress
+          logHUD('SYSTEM: VIEWING LOBBY PROGRESS WITHOUT PARTICIPANT KEY.');
+          if (data.submittedCount >= data.threshold) {
+            logHUD('✓ SYSTEM: THRESHOLD ALREADY MET. ATTEMPTING RECONSTRUCTION...');
+            setThresholdStatus('ready');
+            reconstructAndDecrypt();
+          } else {
+            setThresholdStatus('waiting');
+          }
+        }
       }
     } catch (e: any) {
       setErrorMsg(e.message);
     }
   };
+
+  const submitThresholdShare = async (idx: number, hex: string) => {
+    try {
+      setThresholdStatus('submitting');
+      logHUD(`NETWORK: SUBMITTING PARTICIPANT SHARE #${idx} TO CRYPTO LOBBY...`);
+      
+      const response = await fetch(`http://localhost:3001/v1/shares/${shareId}/submit-share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shareIndex: idx, secretShare: hex })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to register share in threshold escrow.');
+      }
+      
+      const result = await response.json();
+      setSubmittedCount(result.submittedCount);
+      setRequiredThreshold(result.threshold);
+      setLobbyParticipants(result.participantCount);
+      
+      if (result.status === 'completed') {
+        logHUD(`✓ LOBBY: MINIMUM THRESHOLD MET (${result.submittedCount}/${result.threshold})! RECONSTRUCTING CEK...`);
+        setThresholdStatus('ready');
+        await reconstructAndDecrypt();
+      } else {
+        logHUD(`LOBBY: REGISTERED OK. WAITING FOR OTHER SHAREHOLDERS... (${result.submittedCount}/${result.threshold} AUTHENTICATED)`);
+        setThresholdStatus('waiting');
+      }
+    } catch (e: any) {
+      setThresholdStatus('error');
+      setErrorMsg(e.message);
+    }
+  };
+
+  const reconstructAndDecrypt = async () => {
+    try {
+      setIsDecrypting(true);
+      logHUD('NETWORK: ACQUIRING SUBMITTED SHAMIR SHARES FROM ESCROW...');
+      const response = await fetch(`http://localhost:3001/v1/shares/${shareId}/shares`);
+      if (!response.ok) {
+        throw new Error('Failed to retrieve threshold shares.');
+      }
+      const data = await response.json() as Array<{ shareIndex: number; secretShare: string }>;
+      
+      logHUD('CRYPTO: REASSEMBLING CONTENT ENCRYPTION KEY (CEK) VIA SHAMIR SSS...');
+      const sharesArray = data.map(s => new Uint8Array(Buffer.from(s.secretShare, 'hex')));
+      
+      const reconstructedCek = await ShamirSSS.combineShares(sharesArray);
+      logHUD('✓ CRYPTO: CEK KEY RECONSTRUCTED IN CLIENT MEMORY');
+      await triggerDecryption(reconstructedCek);
+    } catch (e: any) {
+      logHUD(`✗ CRYPTO ERROR: CEK RECONSTRUCTION FAILED (${e.message})`);
+      setErrorMsg('Reassembling threshold shares failed. Decryption key mismatch.');
+      setIsDecrypting(false);
+    }
+  };
+
+  const checkLobbyStatus = async () => {
+    try {
+      const response = await fetch(`http://localhost:3001/v1/shares/${shareId}/shares`);
+      if (response.ok) {
+        logHUD(`✓ LOBBY UPDATED: THRESHOLD MET! INITIATING RECONSTRUCTION...`);
+        setThresholdStatus('ready');
+        await reconstructAndDecrypt();
+      } else {
+        const testRes = await fetch(`http://localhost:3001/v1/shares/${shareId}/config`);
+        if (testRes.ok) {
+          const result = await testRes.json();
+          setSubmittedCount(result.submittedCount);
+          setRequiredThreshold(result.threshold);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    let timer: any;
+    if (thresholdStatus === 'waiting') {
+      timer = setInterval(() => {
+        checkLobbyStatus();
+      }, 3000);
+    }
+    return () => clearInterval(timer);
+  }, [thresholdStatus]);
 
   const handlePasswordSubmit = async () => {
     try {
@@ -344,7 +473,50 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
               <div className="border border-neutral-200 bg-white p-8 flex flex-col items-center justify-center min-h-[300px] gap-6 text-center">
                 <Key className="w-10 h-10 text-neutral-400" />
                 
-                {requiresPassword ? (
+                {isThreshold ? (
+                  <div className="w-full max-w-sm flex flex-col gap-4 font-mono">
+                    <div className="flex flex-col gap-1 text-center">
+                      <h3 className="text-sm font-bold uppercase text-neutral-800">M-OF-N ESCROW LOBBY ACTIVE</h3>
+                      <p className="text-[11px] text-neutral-500">
+                        Waiting for required participants to join.
+                      </p>
+                    </div>
+                    
+                    {/* Progress Bar / Counter */}
+                    <div className="bg-neutral-100 p-4 border border-neutral-300">
+                      <div className="flex justify-between items-center text-xs mb-2">
+                        <span className="font-bold">LOBBY PROGRESS:</span>
+                        <span className="font-mono text-neutral-800 font-bold">
+                          {submittedCount} / {requiredThreshold} SHARES
+                        </span>
+                      </div>
+                      
+                      {/* Bar visual */}
+                      <div className="w-full bg-neutral-200 h-2 overflow-hidden border border-neutral-300">
+                        <div 
+                          className="bg-neutral-950 h-full transition-all duration-500" 
+                          style={{ width: `${Math.min(100, (submittedCount / (requiredThreshold || 1)) * 100)}%` }}
+                        />
+                      </div>
+                      
+                      <div className="mt-3 text-[9px] text-neutral-400 text-center leading-relaxed">
+                        Lobby capacity: {lobbyParticipants} total links generated. At least {requiredThreshold} must authorize to decrypt content.
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <span className="text-[10px] text-neutral-400 animate-pulse">
+                        {thresholdStatus === 'waiting' ? '● WAITING FOR OTHERS TO OPEN LINK...' : '● INITIALIZING LOBBY...'}
+                      </span>
+                      <button 
+                        className="font-mono text-[10px] bg-neutral-100 hover:bg-neutral-200 border border-neutral-300 py-1.5 uppercase tracking-wider"
+                        onClick={checkLobbyStatus}
+                      >
+                        REFRESH STATUS
+                      </button>
+                    </div>
+                  </div>
+                ) : requiresPassword ? (
                   <div className="w-full max-w-sm flex flex-col gap-4">
                     <div className="flex flex-col gap-1">
                       <h3 className="font-mono text-sm font-bold uppercase">ENVELOPE PASSWORD REQUIRED</h3>
