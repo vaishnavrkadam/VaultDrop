@@ -8,6 +8,8 @@ import { CryptoProvider, ShamirSSS } from '@vaultdrop/crypto';
 import QRCode from 'qrcode';
 import { FileUp, File, ShieldAlert, Key, Clipboard, Check, RefreshCw } from 'lucide-react';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
 export default function CreateSharePage() {
   // Navigation / Tabs
   const [shareType, setShareType] = useState<'text' | 'file'>('text');
@@ -150,8 +152,7 @@ export default function CreateSharePage() {
       const nonceBase64 = Buffer.from(nonce).toString('base64');
       const tagBase64 = Buffer.from(tag).toString('base64');
       
-      // Call local backend server
-      const response = await fetch('http://localhost:3001/v1/shares', {
+      const response = await fetch(`${API_URL}/v1/shares`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

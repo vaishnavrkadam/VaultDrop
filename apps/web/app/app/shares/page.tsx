@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { Button, GridLine } from '@vaultdrop/ui';
 import { Shield, Eye, Trash2, Calendar, Lock } from 'lucide-react';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
 interface LocalShare {
   id: string;
   shareType: 'text' | 'file';
@@ -52,7 +54,7 @@ export default function MySharesPage() {
     try {
       logHUD(`NETWORK: SENDING REVOCATION COMMAND FOR SHARE ${id}...`);
       
-      const res = await fetch(`http://localhost:3001/v1/shares/${id}`, {
+      const res = await fetch(`${API_URL}/v1/shares/${id}`, {
         method: 'DELETE'
       });
       

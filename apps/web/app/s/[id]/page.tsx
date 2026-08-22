@@ -7,6 +7,8 @@ import { Button, Input, GridLine } from '@vaultdrop/ui';
 import { CryptoProvider, ShamirSSS } from '@vaultdrop/crypto';
 import { Shield, Key, EyeOff, FileText, Download, MessageSquare, Trash2, ShieldAlert } from 'lucide-react';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
 interface Comment {
   id: string;
   author: string;
@@ -77,7 +79,7 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
   // Fetch share config details (salt, access mode, protected mode) from server
   const fetchShareConfig = async () => {
     try {
-      const res = await fetch(`http://localhost:3001/v1/shares/${shareId}/config`);
+      const res = await fetch(`${API_URL}/v1/shares/${shareId}/config`);
       if (!res.ok) {
         throw new Error('Locator ID not found or share has expired/been burned');
       }
@@ -130,7 +132,7 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
       setThresholdStatus('submitting');
       logHUD(`NETWORK: SUBMITTING PARTICIPANT SHARE #${idx} TO CRYPTO LOBBY...`);
       
-      const response = await fetch(`http://localhost:3001/v1/shares/${shareId}/submit-share`, {
+      const response = await fetch(`${API_URL}/v1/shares/${shareId}/submit-share`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ shareIndex: idx, secretShare: hex })
@@ -163,7 +165,7 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
     try {
       setIsDecrypting(true);
       logHUD('NETWORK: ACQUIRING SUBMITTED SHAMIR SHARES FROM ESCROW...');
-      const response = await fetch(`http://localhost:3001/v1/shares/${shareId}/shares`);
+      const response = await fetch(`${API_URL}/v1/shares/${shareId}/shares`);
       if (!response.ok) {
         throw new Error('Failed to retrieve threshold shares.');
       }
@@ -184,13 +186,13 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
 
   const checkLobbyStatus = async () => {
     try {
-      const response = await fetch(`http://localhost:3001/v1/shares/${shareId}/shares`);
+      const response = await fetch(`${API_URL}/v1/shares/${shareId}/shares`);
       if (response.ok) {
         logHUD(`✓ LOBBY UPDATED: THRESHOLD MET! INITIATING RECONSTRUCTION...`);
         setThresholdStatus('ready');
         await reconstructAndDecrypt();
       } else {
-        const testRes = await fetch(`http://localhost:3001/v1/shares/${shareId}/config`);
+        const testRes = await fetch(`${API_URL}/v1/shares/${shareId}/config`);
         if (testRes.ok) {
           const result = await testRes.json();
           setSubmittedCount(result.submittedCount);
@@ -221,7 +223,7 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
       logHUD('CRYPTO: INITIALIZING PASS-ENVELOPE DECRYPTION');
       
       // 1. Fetch encrypted config from API
-      const res = await fetch(`http://localhost:3001/v1/shares/${shareId}/config`);
+      const res = await fetch(`${API_URL}/v1/shares/${shareId}/config`);
       if (!res.ok) throw new Error('Locator ID not found or share expired');
       const config = await res.json();
       
@@ -260,7 +262,7 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
       
       // 1. Fetch ciphertext payload from server
       logHUD('NETWORK: RETRIEVING CIPHERTEXT PAYLOAD FROM SERVER...');
-      const res = await fetch(`http://localhost:3001/v1/shares/${shareId}`);
+      const res = await fetch(`${API_URL}/v1/shares/${shareId}`);
       if (!res.ok) throw new Error('Failed to retrieve vault data');
       const share = await res.json();
       
@@ -314,7 +316,7 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
       // 6. If burn-after-reading, trigger consumed signal on server
       if (isBurn) {
         logHUD('NETWORK: VAULT IS BURN-AFTER-READING. CONSUMING ACCESS LEASE...');
-        await fetch(`http://localhost:3001/v1/shares/${shareId}/consume`, { method: 'POST' });
+        await fetch(`${API_URL}/v1/shares/${shareId}/consume`, { method: 'POST' });
         logHUD('NETWORK: VAULT PERMANENTLY DESTROYED ON SERVER');
       }
     } catch (e: any) {
@@ -327,7 +329,7 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
 
   const fetchComments = async (discKey: Uint8Array) => {
     try {
-      const res = await fetch(`http://localhost:3001/v1/shares/${shareId}/comments`);
+      const res = await fetch(`${API_URL}/v1/shares/${shareId}/comments`);
       if (!res.ok) return;
       const encryptedComments = await res.json();
       
@@ -370,7 +372,7 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
       const authorEnc = await CryptoProvider.encryptAES_GCM(encoder.encode(commentNickname), discussionKey);
       const textEnc = await CryptoProvider.encryptAES_GCM(encoder.encode(commentText), discussionKey);
       
-      const res = await fetch(`http://localhost:3001/v1/shares/${shareId}/comments`, {
+      const res = await fetch(`${API_URL}/v1/shares/${shareId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
