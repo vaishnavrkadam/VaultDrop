@@ -1,7 +1,11 @@
 import express from 'express';
 import cors from 'cors';
 import { v4 as uuidv4 } from 'uuid';
+import dns from 'dns';
 import { initDb, dbRun, dbGet, dbAll } from './db';
+
+// Force DNS resolution to prefer IPv4 (resolves ENETUNREACH on IPv6-disabled hosts like Render)
+dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
