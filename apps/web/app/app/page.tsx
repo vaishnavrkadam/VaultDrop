@@ -250,7 +250,7 @@ export default function CreateSharePage() {
   };
 
   return (
-    <div className="min-h-screen bg-paper flex flex-col grid-dots text-[#171717]">
+    <div className="min-h-screen flex flex-col text-[#171717]">
       
       {/* Header */}
       <header className="border-b border-neutral-200 bg-white">

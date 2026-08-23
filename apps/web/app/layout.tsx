@@ -1,5 +1,6 @@
 import React from 'react';
 import '../styles/globals.css';
+import InteractionShell from './interaction-shell';
 
 export const metadata = {
   title: 'VaultDrop // Secure Zero-Knowledge Data Vaulting',
@@ -14,7 +15,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <body className="h-full bg-paper text-[#171717] antialiased">
-        {children}
+        <InteractionShell>{children}</InteractionShell>
       </body>
     </html>
   );

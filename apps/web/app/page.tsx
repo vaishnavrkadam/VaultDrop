@@ -18,10 +18,12 @@ export default function LandingPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-paper flex flex-col justify-between grid-dots text-[#171717]">
+    <div
+      className="min-h-screen relative flex flex-col justify-between text-[#171717]"
+    >
       
       {/* 1. Header Navigation */}
-      <header className="border-b border-neutral-200">
+      <header className="relative z-10 border-b border-neutral-200/90">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="font-mono font-bold uppercase tracking-[0.25em] text-sm">
@@ -43,7 +45,7 @@ export default function LandingPage() {
       </header>
 
       {/* 2. Main Content */}
-      <main className="flex-grow max-w-7xl w-full mx-auto px-6 py-12 flex flex-col justify-center gap-16 md:gap-24">
+      <main className="relative z-10 flex-grow max-w-7xl w-full mx-auto px-6 py-12 flex flex-col justify-center gap-16 md:gap-24">
         
         {/* Hero Section */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
@@ -52,8 +54,8 @@ export default function LandingPage() {
               PRIVACY BY MATHEMATICS, NOT PROMISES
             </span>
             
-            <h1 className="font-mono text-4xl sm:text-6xl font-bold uppercase tracking-tight leading-none">
-              SECURE SHARING <br/>
+            <h1 className="max-w-[11.5ch] font-mono text-[clamp(2.25rem,5.1vw,3.75rem)] font-bold uppercase tracking-[-0.045em] leading-[0.98]">
+              SECURE SHARING <br />
               <span className="text-neutral-400">FREE FROM COMPROMISE.</span>
             </h1>
             
@@ -77,7 +79,7 @@ export default function LandingPage() {
           </div>
 
           {/* Interactive Cinematic Graphic */}
-          <div className="lg:col-span-5 border border-neutral-200 bg-white p-6 relative flex flex-col justify-between h-[360px]">
+          <div className="lg:col-span-5 min-w-0 border border-neutral-200 bg-white/95 p-6 relative flex flex-col justify-between h-[360px]">
             {/* Corner decorations reminiscent of CAD blueprint lines */}
             <div className="absolute top-0 left-0 w-2.5 h-2.5 border-t border-l border-neutral-400"></div>
             <div className="absolute top-0 right-0 w-2.5 h-2.5 border-t border-r border-neutral-400"></div>
@@ -111,14 +113,14 @@ export default function LandingPage() {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
-                    className="w-full flex items-center justify-around"
+                    className="w-full min-w-0 flex items-center justify-around gap-3"
                   >
-                    <div className="border border-neutral-800 p-4 font-mono text-xs w-[140px] text-center bg-neutral-50 shadow-sm">
+                    <div className="border border-neutral-800 px-2.5 py-3 font-mono text-xs w-[min(140px,42%)] overflow-hidden text-center bg-neutral-50 shadow-sm">
                       <span className="text-[10px] text-neutral-400 block font-bold mb-1">LOCAL MEMORY</span>
-                      "sensitive_payload.txt"
+                      <span className="block whitespace-nowrap text-[9px] tracking-[-0.08em]">"sensitive_payload.txt"</span>
                     </div>
                     <ArrowRight className="text-neutral-300 w-5 h-5 animate-pulse" />
-                    <div className="border border-dashed border-neutral-200 p-4 font-mono text-xs w-[140px] text-center opacity-30 select-none">
+                    <div className="border border-dashed border-neutral-200 p-4 font-mono text-xs w-[min(140px,42%)] text-center opacity-30 select-none">
                       UNAVAILABLE
                     </div>
                   </motion.div>
@@ -189,13 +191,13 @@ export default function LandingPage() {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
-                    className="w-full flex items-center justify-around"
+                    className="w-full min-w-0 flex items-center justify-around gap-3"
                   >
-                    <div className="border border-dashed border-neutral-200 p-4 font-mono text-xs w-[140px] text-center opacity-30 select-none">
+                    <div className="border border-dashed border-neutral-200 p-4 font-mono text-xs w-[min(140px,42%)] text-center opacity-30 select-none">
                       DELETED IN-MEMORY
                     </div>
                     <ArrowRight className="text-neutral-300 w-5 h-5" />
-                    <div className="border border-red-800 bg-red-950 text-red-200 p-4 font-mono text-[10px] w-[140px] text-center break-all">
+                    <div className="border border-red-800 bg-red-950 text-red-200 p-4 font-mono text-[10px] w-[min(140px,42%)] text-center break-all">
                       <span className="text-[9px] text-red-400 block font-bold mb-1 uppercase">CIPHERTEXT STORE</span>
                       u3G9rL+P8zK...
                     </div>
@@ -280,7 +282,7 @@ export default function LandingPage() {
       </main>
 
       {/* 4. Footer */}
-      <footer className="border-t border-neutral-200 py-8 bg-white mt-12">
+      <footer className="relative z-10 border-t border-neutral-200 py-8 bg-white/95 mt-12">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4">
           <span className="font-mono text-[9px] text-neutral-400 uppercase tracking-widest">
             © 2026 VaultDrop Secure sharing. All mathematical properties guaranteed.

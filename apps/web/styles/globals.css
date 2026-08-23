@@ -14,14 +14,88 @@ body {
   font-family: var(--font-sans);
 }
 
-.grid-dots {
-  background-image: radial-gradient(#e5e5e5 1px, transparent 1px);
-  background-size: 24px 24px;
+.vaultdrop-shell {
+  position: relative;
+  isolation: isolate;
+  min-height: 100%;
+  background-color: #fcfcfc;
+}
+
+.vaultdrop-content {
+  position: relative;
+  z-index: 10;
+  min-height: 100vh;
+}
+
+.interactive-dot-field {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background-image: radial-gradient(circle, rgba(23, 23, 23, 0.22) 1.15px, transparent 1.3px);
+  background-size: 28px 28px;
+  -webkit-mask-image: radial-gradient(circle 100px at var(--pointer-x, -300px) var(--pointer-y, -300px), transparent 0, transparent 38%, #000 76%, #000 100%);
+  mask-image: radial-gradient(circle 100px at var(--pointer-x, -300px) var(--pointer-y, -300px), transparent 0, transparent 38%, #000 76%, #000 100%);
+  transition: -webkit-mask-image 80ms linear, mask-image 80ms linear;
 }
 
 .grid-dots-dark {
   background-image: radial-gradient(#262626 1px, transparent 1px);
   background-size: 24px 24px;
+}
+
+@media (pointer: fine) {
+  html.vaultdrop-cursor-enabled,
+  html.vaultdrop-cursor-enabled * {
+    cursor: none;
+  }
+
+  .vault-cursor {
+    position: fixed;
+    top: -12px;
+    left: -12px;
+    z-index: 60;
+    width: 24px;
+    height: 24px;
+    pointer-events: none;
+    will-change: transform, opacity;
+  }
+
+  .vault-cursor i {
+    position: absolute;
+    width: 7px;
+    height: 7px;
+    border-color: #171717;
+    border-style: solid;
+    transition: border-color 150ms ease;
+  }
+
+  .vault-cursor i:nth-child(1) { top: 0; left: 0; border-width: 1px 0 0 1px; }
+  .vault-cursor i:nth-child(2) { top: 0; right: 0; border-width: 1px 1px 0 0; }
+  .vault-cursor i:nth-child(3) { bottom: 0; left: 0; border-width: 0 0 1px 1px; }
+  .vault-cursor i:nth-child(4) { right: 0; bottom: 0; border-width: 0 1px 1px 0; }
+
+  .vault-cursor__core {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 3px;
+    height: 3px;
+    background: #171717;
+    transform: translate(-50%, -50%);
+    transition: background-color 150ms ease;
+  }
+
+  .vault-cursor--active i { border-color: #16a34a; }
+  .vault-cursor--active .vault-cursor__core { background: #16a34a; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vault-cursor,
+  .vault-cursor i,
+  .vault-cursor__core { transition: none; }
 }
 
 /* Custom scrollbars for technical CAD look */

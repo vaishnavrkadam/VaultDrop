@@ -408,7 +408,7 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
   };
 
   return (
-    <div className={`min-h-screen bg-paper flex flex-col grid-dots text-[#171717] ${
+    <div className={`min-h-screen flex flex-col text-[#171717] ${
       isProtected ? 'select-none relative overflow-hidden' : ''
     }`}>
       
