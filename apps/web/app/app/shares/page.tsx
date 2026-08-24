@@ -83,7 +83,10 @@ export default function MySharesPage() {
     if (typeof window !== 'undefined') {
       // Load recovery public key
       const pubKey = localStorage.getItem('vaultdrop_recovery_public_key');
-      if (pubKey) setRecoveryPublicKey(pubKey);
+      if (pubKey) {
+        setRecoveryPublicKey(pubKey);
+        linkExistingLocalRecords(pubKey);
+      }
 
       // Load created shares
       const stored = localStorage.getItem('vaultdrop_created_shares');

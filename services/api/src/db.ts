@@ -31,7 +31,11 @@ export function initDb(): Promise<void> {
           expires_at BIGINT,
           consumed_at BIGINT,
           created_at BIGINT NOT NULL,
-          allow_comments INTEGER NOT NULL DEFAULT 0
+          allow_comments INTEGER NOT NULL DEFAULT 0,
+          creator_public_key TEXT,
+          recovery_envelope TEXT,
+          view_count INTEGER DEFAULT 0,
+          max_views INTEGER
         );
 
         CREATE TABLE IF NOT EXISTS comments (
@@ -131,7 +135,11 @@ export function initDb(): Promise<void> {
             expires_at INTEGER,
             consumed_at INTEGER,
             created_at INTEGER NOT NULL,
-            allow_comments INTEGER NOT NULL DEFAULT 0
+            allow_comments INTEGER NOT NULL DEFAULT 0,
+            creator_public_key TEXT,
+            recovery_envelope TEXT,
+            view_count INTEGER DEFAULT 0,
+            max_views INTEGER
           )
         `);
 
