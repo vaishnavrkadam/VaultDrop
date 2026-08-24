@@ -163,34 +163,46 @@ export default function MySharesPage() {
   // Recovery functions
   const linkExistingLocalRecords = async (pubHex: string) => {
     try {
-      logHUD('SYSTEM: BACKING UP LOCAL VAULTS & ROOMS UNDER SYNC IDENTITY...');
+      logHUD('SYSTEM: INITIATING RECOVERY BACKUP RECONCILIATION...');
       
-      // Sync local shares
       const storedShares = localStorage.getItem('vaultdrop_created_shares');
       let shareCount = 0;
       if (storedShares) {
         const localShares = JSON.parse(storedShares) as LocalShare[];
+        logHUD(`SYSTEM: FOUND ${localShares.length} CACHED VAULTS FOR BACKUP CHECK`);
         await Promise.all(
           localShares.map(async (s) => {
-            if (s.accessMode === 'anonymous' && s.keyHex) {
+            const isAnonymous = !s.accessMode || s.accessMode === 'anonymous';
+            if (isAnonymous && s.keyHex) {
               try {
+                logHUD(`CRYPTO: WRAPPING CEK FOR VAULT ${s.id.substring(0, 8)}...`);
                 const cek = hexToBytes(s.keyHex);
                 const pubBytes = hexToBytes(pubHex);
                 const envelopeBytes = CryptoProvider.encryptForRecipient(cek, pubBytes);
                 const recoveryEnvelope = bytesToBase64(envelopeBytes);
                 
+                logHUD(`NETWORK: TRANSMITTING BACKUP ENVELOPE FOR VAULT ${s.id.substring(0, 8)}...`);
                 const res = await fetch(`${API_URL}/v1/shares/${s.id}/recovery`, {
                   method: 'PUT',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ creatorPublicKey: pubHex, recoveryEnvelope })
                 });
-                if (res.ok) shareCount++;
-              } catch (err) {
-                console.error(err);
+                if (res.ok) {
+                  shareCount++;
+                  logHUD(`✓ NETWORK: VAULT ${s.id.substring(0, 8)} BACKUP COMPLETED`);
+                } else {
+                  logHUD(`✗ NETWORK: VAULT ${s.id.substring(0, 8)} BACKUP REJECTED (HTTP ${res.status})`);
+                }
+              } catch (err: any) {
+                logHUD(`✗ CRYPTO ERROR: VAULT ${s.id.substring(0, 8)} (${err.message})`);
               }
+            } else {
+              logHUD(`SKIP: VAULT ${s.id.substring(0, 8)} NOT BACKUP COMPATIBLE (NO CEK OR NON-ANONYMOUS)`);
             }
           })
         );
+      } else {
+        logHUD('SYSTEM: NO LOCAL VAULTS FOUND IN CACHE');
       }
 
       // Sync local rooms
@@ -198,34 +210,45 @@ export default function MySharesPage() {
       let roomCount = 0;
       if (storedRooms) {
         const localRooms = JSON.parse(storedRooms) as any[];
+        logHUD(`SYSTEM: FOUND ${localRooms.length} CACHED ROOMS FOR BACKUP CHECK`);
         await Promise.all(
           localRooms.map(async (r) => {
-            if (r.accessMode === 'anonymous' && r.keyHex) {
+            const isAnonymous = !r.accessMode || r.accessMode === 'anonymous';
+            if (isAnonymous && r.keyHex) {
               try {
+                logHUD(`CRYPTO: WRAPPING KEY FOR ROOM ${r.id.substring(0, 8)}...`);
                 const roomKey = hexToBytes(r.keyHex);
                 const pubBytes = hexToBytes(pubHex);
                 const envelopeBytes = CryptoProvider.encryptForRecipient(roomKey, pubBytes);
                 const recoveryEnvelope = bytesToBase64(envelopeBytes);
                 
+                logHUD(`NETWORK: TRANSMITTING BACKUP ENVELOPE FOR ROOM ${r.id.substring(0, 8)}...`);
                 const res = await fetch(`${API_URL}/v1/rooms/${r.id}/recovery`, {
                   method: 'PUT',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ creatorPublicKey: pubHex, recoveryEnvelope })
                 });
-                if (res.ok) roomCount++;
-              } catch (err) {
-                console.error(err);
+                if (res.ok) {
+                  roomCount++;
+                  logHUD(`✓ NETWORK: ROOM ${r.id.substring(0, 8)} BACKUP COMPLETED`);
+                } else {
+                  logHUD(`✗ NETWORK: ROOM ${r.id.substring(0, 8)} BACKUP REJECTED (HTTP ${res.status})`);
+                }
+              } catch (err: any) {
+                logHUD(`✗ CRYPTO ERROR: ROOM ${r.id.substring(0, 8)} (${err.message})`);
               }
+            } else {
+              logHUD(`SKIP: ROOM ${r.id.substring(0, 8)} NOT BACKUP COMPATIBLE`);
             }
           })
         );
+      } else {
+        logHUD('SYSTEM: NO LOCAL ROOMS FOUND IN CACHE');
       }
       
-      if (shareCount > 0 || roomCount > 0) {
-        logHUD(`✓ SYSTEM: SYNCED ${shareCount} VAULTS & ${roomCount} ROOMS TO ACCOUNT IDENTITY`);
-      }
-    } catch (e) {
-      console.error('Failed to link existing records:', e);
+      logHUD(`✓ SYSTEM: RECONCILIATION FINISHED (SYNCED: ${shareCount} VAULTS, ${roomCount} ROOMS)`);
+    } catch (e: any) {
+      logHUD(`✗ SYSTEM ERROR: BACKUP RECONCILIATION FAILED (${e.message})`);
     }
   };
 
@@ -446,23 +469,23 @@ export default function MySharesPage() {
                   </Button>
                 </div>
               </div>
-              
-              {generatedPrivateKey && (
-                <div className="border border-green-200 bg-green-50/50 p-4 font-mono text-xs flex flex-col gap-3 mt-2">
-                  <div className="flex items-center gap-1.5 text-green-700 font-bold">
-                    <CheckCircle className="w-4 h-4" /> RECOVERY KEYPAIR GENERATED successfully!
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[9px] text-green-600 uppercase font-semibold">YOUR PRIVATE KEY (SAVE THIS SECURELY!)</span>
-                    <span className="bg-white border border-green-200 px-3 py-2 text-[11px] font-bold select-all break-all text-neutral-800">
-                      {generatedPrivateKey}
-                    </span>
-                  </div>
-                  <span className="text-[9px] text-green-600 font-semibold uppercase leading-snug">
-                    WARNING: Keep this private key safe. Anyone who has it can retrieve and decrypt all your vaults. It will not be shown again.
-                  </span>
-                </div>
-              )}
+            </div>
+          )}
+
+          {generatedPrivateKey && (
+            <div className="border border-green-200 bg-green-50/50 p-4 font-mono text-xs flex flex-col gap-3 mt-2">
+              <div className="flex items-center gap-1.5 text-green-700 font-bold">
+                <CheckCircle className="w-4 h-4" /> RECOVERY KEYPAIR GENERATED successfully!
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[9px] text-green-600 uppercase font-semibold">YOUR PRIVATE KEY (SAVE THIS SECURELY!)</span>
+                <span className="bg-white border border-green-200 px-3 py-2 text-[11px] font-bold select-all break-all text-neutral-800">
+                  {generatedPrivateKey}
+                </span>
+              </div>
+              <span className="text-[9px] text-green-600 font-semibold uppercase leading-snug">
+                WARNING: Keep this private key safe. Anyone who has it can retrieve and decrypt all your vaults. It will not be shown again.
+              </span>
             </div>
           )}
         </div>
