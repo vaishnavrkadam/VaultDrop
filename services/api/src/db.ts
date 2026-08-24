@@ -74,6 +74,9 @@ export function initDb(): Promise<void> {
       sqliteDb = new sqlite3.Database(dbPath);
 
       sqliteDb.serialize(() => {
+        // Enable foreign key support in SQLite
+        sqliteDb!.run('PRAGMA foreign_keys = ON;');
+
         // Create tables in SQLite
         sqliteDb!.run(`
           CREATE TABLE IF NOT EXISTS shares (
@@ -185,3 +188,30 @@ export const dbAll = <T>(sql: string, params: any[] = []): Promise<T[]> => {
     });
   }
 };
+
+export function closeDb(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (sqliteDb) {
+      sqliteDb.close((err) => {
+        if (err) {
+          reject(err);
+        } else {
+          sqliteDb = null;
+          resolve();
+        }
+      });
+    } else if (pgPool) {
+      pgPool.end()
+        .then(() => {
+          pgPool = null;
+          resolve();
+        })
+        .catch((err) => {
+          reject(err);
+        });
+    } else {
+      resolve();
+    }
+  });
+}
+

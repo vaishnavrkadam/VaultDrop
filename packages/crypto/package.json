@@ -6,7 +6,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "jest"
+    "test": "node dist/test_crypto.js"
   },
   "dependencies": {
     "hash-wasm": "^4.11.0",

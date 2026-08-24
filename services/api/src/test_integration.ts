@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { v4 as uuidv4 } from 'uuid';
-import { initDb, dbRun, dbGet, dbAll } from './db';
+import { initDb, dbRun, dbGet, dbAll, closeDb } from './db';
 
 // Setup temporary API server for integration testing
 const app = express();
@@ -146,10 +146,20 @@ async function runIntegrationTests() {
       console.log('✓ Verified: Revoked share is completely deleted');
 
       console.log('--- INTEGRATION TESTS COMPLETED SUCCESSFULLY ---');
-      server.close(() => process.exit(0));
+      await closeDb();
+      server.close(() => {
+        setTimeout(() => {
+          process.exit(0);
+        }, 100);
+      });
     } catch (err) {
       console.error('✗ INTEGRATION TESTS FAILED:', err);
-      server.close(() => process.exit(1));
+      await closeDb().catch(() => {});
+      server.close(() => {
+        setTimeout(() => {
+          process.exit(1);
+        }, 100);
+      });
     }
   });
 }

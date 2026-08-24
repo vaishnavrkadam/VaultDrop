@@ -95,15 +95,6 @@ export default function LandingPage() {
             {/* Content rendering the interactive flow */}
             <div className="flex-grow flex items-center justify-center relative overflow-hidden my-4">
               
-              {/* Divider for Client / Server Domain */}
-              <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 border-r border-dashed border-neutral-300 flex flex-col justify-between items-center py-2">
-                <span className="font-mono text-[9px] uppercase tracking-widest text-neutral-400 bg-white px-2 py-0.5 -translate-y-2 select-none">
-                  DOMAIN BOUNDARY
-                </span>
-                <span className="font-mono text-[9px] uppercase tracking-widest text-neutral-400 bg-white px-2 py-0.5 translate-y-2 select-none">
-                  UNTRUSTED LIMIT
-                </span>
-              </div>
 
               {/* Step Animation Elements */}
               <AnimatePresence mode="wait">
@@ -115,9 +106,9 @@ export default function LandingPage() {
                     exit={{ opacity: 0, x: 20 }}
                     className="w-full min-w-0 flex items-center justify-around gap-3"
                   >
-                    <div className="border border-neutral-800 px-2.5 py-3 font-mono text-xs w-[min(140px,42%)] overflow-hidden text-center bg-neutral-50 shadow-sm">
-                      <span className="text-[10px] text-neutral-400 block font-bold mb-1">LOCAL MEMORY</span>
-                      <span className="block whitespace-nowrap text-[9px] tracking-[-0.08em]">"sensitive_payload.txt"</span>
+                    <div className="border border-neutral-800 px-2.5 py-3 font-mono text-xs w-[min(160px,42%)] overflow-hidden text-center bg-neutral-50 shadow-sm">
+                      <span className="text-[13px] text-neutral-400 block font-bold mb-1">LOCAL MEMORY</span>
+                      <span className="block whitespace-nowrap text-[12px] tracking-[-0.08em]">"sensitive_payload.txt"</span>
                     </div>
                     <ArrowRight className="text-neutral-300 w-5 h-5 animate-pulse" />
                     <div className="border border-dashed border-neutral-200 p-4 font-mono text-xs w-[min(140px,42%)] text-center opacity-30 select-none">

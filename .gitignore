@@ -36,3 +36,15 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+# Temp Folders
+.tmp-reference/
+.tmp-reference-2/
+
+# TypeScript Build Info
+*.tsbuildinfo
+
+# Internal Resources Documentation
+Resources/*.md
+Resources/*.txt
+

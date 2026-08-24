@@ -150,7 +150,7 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
       if (result.status === 'completed') {
         logHUD(`✓ LOBBY: MINIMUM THRESHOLD MET (${result.submittedCount}/${result.threshold})! RECONSTRUCTING CEK...`);
         setThresholdStatus('ready');
-        await reconstructAndDecrypt();
+        await reconstructAndDecrypt(idx, hex);
       } else {
         logHUD(`LOBBY: REGISTERED OK. WAITING FOR OTHER SHAREHOLDERS... (${result.submittedCount}/${result.threshold} AUTHENTICATED)`);
         setThresholdStatus('waiting');
@@ -161,11 +161,19 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
     }
   };
 
-  const reconstructAndDecrypt = async () => {
+  const reconstructAndDecrypt = async (currentShareIndex?: number, currentShareHex?: string) => {
     try {
+      setErrorMsg('');
       setIsDecrypting(true);
       logHUD('NETWORK: ACQUIRING SUBMITTED SHAMIR SHARES FROM ESCROW...');
-      const response = await fetch(`${API_URL}/v1/shares/${shareId}/shares`);
+      
+      const targetIndex = currentShareIndex !== undefined ? currentShareIndex : shareIndex;
+      const targetHex = currentShareHex || shareHex;
+      
+      const queryParams = (targetIndex !== null && targetHex)
+        ? `?shareIndex=${targetIndex}&secretShare=${targetHex}`
+        : '';
+      const response = await fetch(`${API_URL}/v1/shares/${shareId}/shares${queryParams}`);
       if (!response.ok) {
         throw new Error('Failed to retrieve threshold shares.');
       }
@@ -185,12 +193,13 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
   };
 
   const checkLobbyStatus = async () => {
+    if (shareIndex === null || !shareHex) return;
     try {
-      const response = await fetch(`${API_URL}/v1/shares/${shareId}/shares`);
+      const response = await fetch(`${API_URL}/v1/shares/${shareId}/shares?shareIndex=${shareIndex}&secretShare=${shareHex}`);
       if (response.ok) {
         logHUD(`✓ LOBBY UPDATED: THRESHOLD MET! INITIATING RECONSTRUCTION...`);
         setThresholdStatus('ready');
-        await reconstructAndDecrypt();
+        await reconstructAndDecrypt(shareIndex, shareHex);
       } else {
         const testRes = await fetch(`${API_URL}/v1/shares/${shareId}/config`);
         if (testRes.ok) {
@@ -258,6 +267,7 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
 
   const triggerDecryption = async (cek: Uint8Array) => {
     try {
+      setErrorMsg('');
       if (!isDecrypting) setIsDecrypting(true);
       
       // 1. Fetch ciphertext payload from server

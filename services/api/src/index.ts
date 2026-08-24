@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import { v4 as uuidv4 } from 'uuid';
 import dns from 'dns';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { initDb, dbRun, dbGet, dbAll } from './db';
 
 // Force DNS resolution to prefer IPv4 (resolves ENETUNREACH on IPv6-disabled hosts like Render)
@@ -9,6 +11,29 @@ dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Use Helmet for securing HTTP headers
+app.use(helmet());
+
+// General rate limiter: max 300 requests per 15 minutes per IP
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many requests from this IP, please try again after 15 minutes.'
+});
+
+// Stricter rate limiter for share creation: max 15 shares per hour per IP
+const shareCreationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Share creation rate limit exceeded. Please try again after an hour.'
+});
+
+app.use(generalLimiter);
 
 // CORS setup: Allow connections from Next.js development client
 app.use(cors({
@@ -52,8 +77,12 @@ interface ShareRow {
   created_at: number;
 }
 
-// 1. Create a share
-app.post('/v1/shares', async (req, res) => {
+/**
+ * Create a new encrypted share.
+ * Accepts client-side encrypted payloads, initialization vectors (nonce), and integrity tags.
+ * Rate-limited to prevent automated spam (storage DoS protection).
+ */
+app.post('/v1/shares', shareCreationLimiter, async (req, res) => {
   try {
     const {
       shareType,
@@ -134,7 +163,10 @@ app.post('/v1/shares', async (req, res) => {
   }
 });
 
-// 2. Fetch share configuration/envelope metadata (No payload)
+/**
+ * Retrieve metadata envelope configuration for a specific share (e.g. access mode, KDF salt, SSS lobby status).
+ * Does not return the encrypted content payload itself to preserve access checks separation.
+ */
 app.get('/v1/shares/:id/config', async (req, res) => {
   try {
     const { id } = req.params;
@@ -377,9 +409,27 @@ app.post('/v1/shares/:id/submit-share', async (req, res) => {
 app.get('/v1/shares/:id/shares', async (req, res) => {
   try {
     const { id } = req.params;
+    const requesterIndex = req.query.shareIndex;
+    const requesterSecretShare = req.query.secretShare;
+
+    if (requesterIndex === undefined || !requesterSecretShare) {
+      return res.status(401).send('Unauthorized. Requester share proof is required.');
+    }
+
     const policy = await dbGet<any>('SELECT * FROM threshold_policies WHERE share_id = ?', [id]);
     if (!policy) {
       return res.status(404).send('No threshold policy found.');
+    }
+
+    // Verify that the requester holds a valid share in this specific lobby
+    const requesterIndexNum = parseInt(requesterIndex as string, 10);
+    const match = await dbGet<any>(
+      'SELECT * FROM threshold_shares WHERE share_id = ? AND share_index = ? AND encrypted_secret_share = ?',
+      [id, requesterIndexNum, requesterSecretShare]
+    );
+
+    if (!match) {
+      return res.status(401).send('Unauthorized. Invalid shareholder credentials.');
     }
 
     const submitted = await dbAll<any>('SELECT * FROM threshold_shares WHERE share_id = ?', [id]);
