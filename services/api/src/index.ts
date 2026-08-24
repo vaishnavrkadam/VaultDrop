@@ -548,7 +548,7 @@ app.get('/v1/account/:publicKey/shares', async (req, res) => {
       shareType: r.share_type,
       accessMode: r.access_mode,
       recoveryEnvelope: r.recovery_envelope,
-      createdAt: new Date(r.created_at).toISOString()
+      createdAt: new Date(Number(r.created_at)).toISOString()
     })));
   } catch (e) {
     console.error(e);
@@ -568,7 +568,7 @@ app.get('/v1/account/:publicKey/rooms', async (req, res) => {
       id: r.id,
       accessMode: r.access_mode,
       recoveryEnvelope: r.recovery_envelope,
-      createdAt: new Date(r.created_at).toISOString()
+      createdAt: new Date(Number(r.created_at)).toISOString()
     })));
   } catch (e) {
     console.error(e);
