@@ -322,6 +322,7 @@ export default function ChatRoomPage({ params }: { params: { id: string } }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          id: attachmentId,
           ciphertext: bytesToBase64(fileEncrypt.ciphertext),
           nonce: bytesToBase64(fileEncrypt.nonce),
           tag: bytesToBase64(fileEncrypt.tag),

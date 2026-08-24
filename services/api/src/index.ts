@@ -680,12 +680,12 @@ app.get('/v1/rooms/:id/messages', async (req, res) => {
 app.post('/v1/rooms/:id/attachments', async (req, res) => {
   try {
     const { id } = req.params;
-    const { ciphertext, nonce, tag, fileMeta } = req.body;
+    const { id: clientAttachmentId, ciphertext, nonce, tag, fileMeta } = req.body;
     if (!ciphertext || !nonce || !tag || !fileMeta) {
       return res.status(400).send('Missing file envelope parameters.');
     }
     
-    const attachmentId = uuidv4();
+    const attachmentId = clientAttachmentId || uuidv4();
     await dbRun(
       `INSERT INTO room_attachments (id, room_id, ciphertext, nonce, tag, file_meta, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -712,6 +712,38 @@ app.get('/v1/rooms/:id/attachments/:attachmentId', async (req, res) => {
       tag: row.tag,
       fileMeta: row.file_meta
     });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// Update recovery credentials on existing shares
+app.put('/v1/shares/:id/recovery', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { creatorPublicKey, recoveryEnvelope } = req.body;
+    await dbRun(
+      'UPDATE shares SET creator_public_key = ?, recovery_envelope = ? WHERE id = ?',
+      [creatorPublicKey, recoveryEnvelope, id]
+    );
+    res.sendStatus(200);
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// Update recovery credentials on existing rooms
+app.put('/v1/rooms/:id/recovery', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { creatorPublicKey, recoveryEnvelope } = req.body;
+    await dbRun(
+      'UPDATE rooms SET creator_public_key = ?, recovery_envelope = ? WHERE id = ?',
+      [creatorPublicKey, recoveryEnvelope, id]
+    );
+    res.sendStatus(200);
   } catch (e) {
     console.error(e);
     res.status(500).send('Internal Server Error');

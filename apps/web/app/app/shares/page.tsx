@@ -158,7 +158,75 @@ export default function MySharesPage() {
   };
 
   // Recovery functions
-  const generateRecoveryKeypair = () => {
+  const linkExistingLocalRecords = async (pubHex: string) => {
+    try {
+      logHUD('SYSTEM: BACKING UP LOCAL VAULTS & ROOMS UNDER SYNC IDENTITY...');
+      
+      // Sync local shares
+      const storedShares = localStorage.getItem('vaultdrop_created_shares');
+      let shareCount = 0;
+      if (storedShares) {
+        const localShares = JSON.parse(storedShares) as LocalShare[];
+        await Promise.all(
+          localShares.map(async (s) => {
+            if (s.accessMode === 'anonymous' && s.keyHex) {
+              try {
+                const cek = hexToBytes(s.keyHex);
+                const pubBytes = hexToBytes(pubHex);
+                const envelopeBytes = CryptoProvider.encryptForRecipient(cek, pubBytes);
+                const recoveryEnvelope = bytesToBase64(envelopeBytes);
+                
+                const res = await fetch(`${API_URL}/v1/shares/${s.id}/recovery`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ creatorPublicKey: pubHex, recoveryEnvelope })
+                });
+                if (res.ok) shareCount++;
+              } catch (err) {
+                console.error(err);
+              }
+            }
+          })
+        );
+      }
+
+      // Sync local rooms
+      const storedRooms = localStorage.getItem('vaultdrop_created_rooms');
+      let roomCount = 0;
+      if (storedRooms) {
+        const localRooms = JSON.parse(storedRooms) as any[];
+        await Promise.all(
+          localRooms.map(async (r) => {
+            if (r.accessMode === 'anonymous' && r.keyHex) {
+              try {
+                const roomKey = hexToBytes(r.keyHex);
+                const pubBytes = hexToBytes(pubHex);
+                const envelopeBytes = CryptoProvider.encryptForRecipient(roomKey, pubBytes);
+                const recoveryEnvelope = bytesToBase64(envelopeBytes);
+                
+                const res = await fetch(`${API_URL}/v1/rooms/${r.id}/recovery`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ creatorPublicKey: pubHex, recoveryEnvelope })
+                });
+                if (res.ok) roomCount++;
+              } catch (err) {
+                console.error(err);
+              }
+            }
+          })
+        );
+      }
+      
+      if (shareCount > 0 || roomCount > 0) {
+        logHUD(`✓ SYSTEM: SYNCED ${shareCount} VAULTS & ${roomCount} ROOMS TO ACCOUNT IDENTITY`);
+      }
+    } catch (e) {
+      console.error('Failed to link existing records:', e);
+    }
+  };
+
+  const generateRecoveryKeypair = async () => {
     try {
       logHUD('CRYPTO: GENERATING X25519 BOX KEYPAIR...');
       const keypair = CryptoProvider.generateBoxKeyPair();
@@ -172,6 +240,8 @@ export default function MySharesPage() {
       setRecoveryPublicKey(pubHex);
       setGeneratedPrivateKey(privHex);
       logHUD('✓ CRYPTO: NEW RECOVERY IDENTITY REGISTERED');
+      
+      await linkExistingLocalRecords(pubHex);
     } catch (e: any) {
       logHUD(`✗ SYSTEM ERROR: ${e.message}`);
     }
@@ -194,6 +264,8 @@ export default function MySharesPage() {
       // Save identity locally
       localStorage.setItem('vaultdrop_recovery_public_key', pubHex);
       setRecoveryPublicKey(pubHex);
+
+      await linkExistingLocalRecords(pubHex);
 
       // Query account shares
       logHUD('NETWORK: FETCHING ESCROW VAULTS MATCHING PUBLIC KEY...');
@@ -340,6 +412,8 @@ export default function MySharesPage() {
               </div>
               <p className="text-[10px] text-neutral-400 uppercase leading-relaxed">
                 Vaults and Rooms created on this device are automatically encrypted for this identity. You can import your private key on other devices to restore them.
+                <br />
+                <span className="text-neutral-500 font-bold font-mono">Note: The active identity key shown above is the derived X25519 Public Key. It is mathematically generated from your secret 32-byte Private Key.</span>
               </p>
               <div className="flex gap-3">
                 <Button variant="danger" size="sm" onClick={deauthorizeRecoveryKeys} className="font-mono text-[10px] uppercase tracking-wider">
