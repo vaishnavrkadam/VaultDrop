@@ -30,7 +30,8 @@ export function initDb(): Promise<void> {
           file_meta TEXT,
           expires_at BIGINT,
           consumed_at BIGINT,
-          created_at BIGINT NOT NULL
+          created_at BIGINT NOT NULL,
+          allow_comments INTEGER NOT NULL DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS comments (
@@ -60,7 +61,8 @@ export function initDb(): Promise<void> {
           UNIQUE(share_id, share_index)
         );
       `)
-        .then(() => {
+        .then(async () => {
+          await pgPool!.query('ALTER TABLE shares ADD COLUMN IF NOT EXISTS allow_comments INTEGER NOT NULL DEFAULT 0');
           console.log('✓ PostgreSQL database initialized successfully.');
           resolve();
         })
@@ -92,7 +94,8 @@ export function initDb(): Promise<void> {
             file_meta TEXT,
             expires_at INTEGER,
             consumed_at INTEGER,
-            created_at INTEGER NOT NULL
+            created_at INTEGER NOT NULL,
+            allow_comments INTEGER NOT NULL DEFAULT 0
           )
         `);
 
@@ -135,8 +138,11 @@ export function initDb(): Promise<void> {
             console.error('Failed to create SQLite tables:', err);
             return reject(err);
           }
-          console.log('✓ SQLite database initialized successfully.');
-          resolve();
+          // Attempt to add the column if it doesn't exist (fails silently if already present)
+          sqliteDb!.run('ALTER TABLE shares ADD COLUMN allow_comments INTEGER NOT NULL DEFAULT 0', () => {
+            console.log('✓ SQLite database initialized successfully.');
+            resolve();
+          });
         });
       });
     }

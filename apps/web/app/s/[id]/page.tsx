@@ -43,6 +43,7 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
   // Share meta configuration
   const [isBurn, setIsBurn] = useState(false);
   const [isProtected, setIsProtected] = useState(false); // Enable diagonal watermark for secure text paste
+  const [allowComments, setAllowComments] = useState(false);
 
   // Read hash fragment for CEK / Share split
   const [cekHexFromUrl, setCekHexFromUrl] = useState('');
@@ -88,6 +89,7 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
       setIsBurn(data.burnAfterReading);
       setIsProtected(data.protectedViewing || false);
       setIsThreshold(data.accessMode === 'threshold');
+      setAllowComments(data.allowComments || false);
       
       // Auto-decrypt if key is in URL and no password is required
       if (data.accessMode === 'anonymous' && window.location.hash.startsWith('#key=')) {
@@ -593,7 +595,7 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
             )}
 
             {/* Discussions Frame */}
-            {decryptedData && discussionKey && (
+            {decryptedData && discussionKey && allowComments && (
               <div className="border border-neutral-200 bg-white p-6 flex flex-col gap-4">
                 <div className="flex items-center gap-2 border-b border-neutral-100 pb-3">
                   <MessageSquare className="w-4 h-4 text-neutral-900" />

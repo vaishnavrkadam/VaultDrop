@@ -75,6 +75,7 @@ interface ShareRow {
   expires_at: number | null;
   consumed_at: number | null;
   created_at: number;
+  allow_comments: number;
 }
 
 /**
@@ -95,7 +96,8 @@ app.post('/v1/shares', shareCreationLimiter, async (req, res) => {
       expiry,
       fileMeta,
       threshold,
-      participantCount
+      participantCount,
+      allowComments
     } = req.body;
 
     if (!shareType || !accessMode || !ciphertext || !nonce || !tag) {
@@ -124,13 +126,14 @@ app.post('/v1/shares', shareCreationLimiter, async (req, res) => {
     }
 
     const burnAfterReading = (expiry === '5m' || expiry === 'burn') ? 1 : 0;
+    const allowCommentsVal = allowComments ? 1 : 0;
 
     await dbRun(
       `INSERT INTO shares (
         id, share_type, access_mode, ciphertext, nonce, tag, 
         wrapped_content_key, salt, burn_after_reading, file_meta, 
-        expires_at, consumed_at, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
+        expires_at, consumed_at, created_at, allow_comments
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
       [
         shareId,
         shareType,
@@ -143,7 +146,8 @@ app.post('/v1/shares', shareCreationLimiter, async (req, res) => {
         burnAfterReading,
         fileMeta ? JSON.stringify(fileMeta) : null,
         expiresAt,
-        createdAt
+        createdAt,
+        allowCommentsVal
       ]
     );
 
@@ -209,7 +213,8 @@ app.get('/v1/shares/:id/config', async (req, res) => {
       protectedViewing: share.share_type === 'text', // Auto-protect text shares with watermarks
       submittedCount,
       threshold,
-      participantCount
+      participantCount,
+      allowComments: share.allow_comments === 1
     });
   } catch (e) {
     console.error(e);
@@ -305,6 +310,14 @@ app.post('/v1/shares/:id/comments', async (req, res) => {
 
     if (!encryptedAuthor || !authorNonce || !authorTag || !ciphertext || !nonce || !tag) {
       return res.status(400).send('Missing encrypted comment payload fields.');
+    }
+
+    const share = await dbGet<ShareRow>('SELECT * FROM shares WHERE id = ?', [id]);
+    if (!share) {
+      return res.status(404).send('Share not found.');
+    }
+    if (share.allow_comments !== 1) {
+      return res.status(403).send('Comments are disabled for this share.');
     }
 
     const commentId = uuidv4();

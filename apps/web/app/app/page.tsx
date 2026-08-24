@@ -23,6 +23,7 @@ export default function CreateSharePage() {
   const [accessMode, setAccessMode] = useState<'anonymous' | 'password' | 'threshold'>('anonymous');
   const [threshold, setThreshold] = useState('3');
   const [participantCount, setParticipantCount] = useState('5');
+  const [allowComments, setAllowComments] = useState(false);
   
   // Loading & HUD State
   const [hudStatus, setHudStatus] = useState<string[]>([]);
@@ -166,7 +167,8 @@ export default function CreateSharePage() {
           expiry: expiry === 'custom' ? `custom:${customMinutes}` : expiry,
           fileMeta,
           threshold: accessMode === 'threshold' ? threshold : undefined,
-          participantCount: accessMode === 'threshold' ? participantCount : undefined
+          participantCount: accessMode === 'threshold' ? participantCount : undefined,
+          allowComments
         })
       });
       
@@ -178,14 +180,17 @@ export default function CreateSharePage() {
       logHUD('NETWORK: VAULTING COMPLETED SUCCESSFULLY');
       
       // Calculate absolute local expiresAt timestamp
-      let durationMs = 7 * 24 * 60 * 60 * 1000;
-      if (expiry === '5m') durationMs = 5 * 60 * 1000;
-      else if (expiry === '1h') durationMs = 60 * 60 * 1000;
-      else if (expiry === '1d') durationMs = 24 * 60 * 60 * 1000;
-      else if (expiry === '7d') durationMs = 7 * 24 * 60 * 60 * 1000;
-      else if (expiry === '30d') durationMs = 30 * 24 * 60 * 60 * 1000;
-      else if (expiry === 'custom') durationMs = parseInt(customMinutes, 10) * 60 * 1000;
-      const expiresAt = Date.now() + durationMs;
+      let expiresAt: number | null = null;
+      if (expiry !== 'never' && expiry !== 'burn') {
+        let durationMs = 7 * 24 * 60 * 60 * 1000;
+        if (expiry === '5m') durationMs = 5 * 60 * 1000;
+        else if (expiry === '1h') durationMs = 60 * 60 * 1000;
+        else if (expiry === '1d') durationMs = 24 * 60 * 60 * 1000;
+        else if (expiry === '7d') durationMs = 7 * 24 * 60 * 60 * 1000;
+        else if (expiry === '30d') durationMs = 30 * 24 * 60 * 60 * 1000;
+        else if (expiry === 'custom') durationMs = parseInt(customMinutes, 10) * 60 * 1000;
+        expiresAt = Date.now() + durationMs;
+      }
 
       const keyHex = Buffer.from(cek).toString('hex');
 
@@ -355,7 +360,9 @@ export default function CreateSharePage() {
                   className="bg-transparent border-b border-neutral-300 py-1.5 px-1 font-mono text-sm focus:outline-none focus:border-neutral-900"
                   disabled={isProcessing}
                 >
-                  <option value="5m">5 MINUTES (BURN)</option>
+                  <option value="never">NEVER EXPIRE</option>
+                  <option value="burn">BURN ONCE READ</option>
+                  <option value="5m">5 MINUTES (LEASING)</option>
                   <option value="1h">1 HOUR</option>
                   <option value="1d">1 DAY</option>
                   <option value="7d">7 DAYS</option>
@@ -452,6 +459,23 @@ export default function CreateSharePage() {
                   />
                 </div>
               )}
+
+              {/* Discussion controls */}
+              <div className="flex flex-col gap-2 border-t border-neutral-100 pt-4 sm:col-span-2">
+                <label className="font-mono text-[10px] uppercase tracking-widest text-neutral-500">
+                  DISCUSSIONS LAYER
+                </label>
+                <label className="flex items-center gap-2 font-mono text-xs cursor-pointer select-none pt-1">
+                  <input
+                    type="checkbox"
+                    checked={allowComments}
+                    onChange={(e) => setAllowComments(e.target.checked)}
+                    className="accent-neutral-900 w-4 h-4"
+                    disabled={isProcessing}
+                  />
+                  ENABLE CLIENT-ENCRYPTED COMMENTS (OFF BY DEFAULT)
+                </label>
+              </div>
 
             </div>
 
