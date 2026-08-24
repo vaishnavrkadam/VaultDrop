@@ -37,8 +37,11 @@ export default function LandingPage() {
             <Link href="#architecture" className="font-mono text-[10px] uppercase tracking-wider text-neutral-600 hover:text-neutral-900 transition-colors">
               [ ARCHITECTURE ]
             </Link>
-            <Link href="/app" className="font-mono text-[10px] uppercase tracking-wider text-neutral-900 font-bold hover:underline">
-              [ LAUNCH APP ]
+            <Link href="/app" className="font-mono text-[10px] uppercase tracking-wider text-neutral-600 hover:text-neutral-900 transition-colors">
+              [ VAULTS ]
+            </Link>
+            <Link href="/app/rooms" className="font-mono text-[10px] uppercase tracking-wider text-neutral-600 hover:text-neutral-900 transition-colors">
+              [ VAULT ROOMS ]
             </Link>
           </nav>
         </div>
@@ -67,7 +70,12 @@ export default function LandingPage() {
             <div className="flex flex-wrap gap-4 mt-2">
               <Link href="/app">
                 <Button variant="primary" size="md">
-                  LAUNCH APPLICATION [ → ]
+                  SECURE VAULTS [ → ]
+                </Button>
+              </Link>
+              <Link href="/app/rooms">
+                <Button variant="primary" size="md">
+                  VAULT ROOMS [ Real-time Chat ]
                 </Button>
               </Link>
               <Link href="#architecture">

@@ -24,6 +24,7 @@ export default function CreateSharePage() {
   const [threshold, setThreshold] = useState('3');
   const [participantCount, setParticipantCount] = useState('5');
   const [allowComments, setAllowComments] = useState(false);
+  const [maxViews, setMaxViews] = useState('');
   
   // Loading & HUD State
   const [hudStatus, setHudStatus] = useState<string[]>([]);
@@ -147,6 +148,21 @@ export default function CreateSharePage() {
         logHUD(`✓ CRYPTO: SHAMIR KEY SPLIT COMPLETED`);
       }
       
+      // Check if creator recovery public key is active in browser
+      let creatorPublicKey: string | undefined;
+      let recoveryEnvelope: string | undefined;
+      if (typeof window !== 'undefined') {
+        const pubHex = localStorage.getItem('vaultdrop_recovery_public_key');
+        if (pubHex) {
+          logHUD('CRYPTO: ENCRYPTING KEY COPY FOR ACCOUNT RECOVERY ENVELOPE...');
+          const pubBytes = new Uint8Array(Buffer.from(pubHex, 'hex'));
+          const envelopeBytes = CryptoProvider.encryptForRecipient(cek, pubBytes);
+          creatorPublicKey = pubHex;
+          recoveryEnvelope = Buffer.from(envelopeBytes).toString('base64');
+          logHUD('✓ CRYPTO: ACCOUNT RECOVERY SYNCHRONIZER ATTACHED');
+        }
+      }
+
       // 4. Send to storage server
       logHUD('NETWORK: CONNECTING TO STORAGE API...');
       const payloadBase64 = Buffer.from(ciphertext).toString('base64');
@@ -168,7 +184,10 @@ export default function CreateSharePage() {
           fileMeta,
           threshold: accessMode === 'threshold' ? threshold : undefined,
           participantCount: accessMode === 'threshold' ? participantCount : undefined,
-          allowComments
+          allowComments,
+          creatorPublicKey,
+          recoveryEnvelope,
+          maxViews: maxViews ? parseInt(maxViews, 10) : undefined
         })
       });
       
@@ -269,6 +288,9 @@ export default function CreateSharePage() {
             </span>
           </div>
           <div className="flex gap-4">
+            <Link href="/app/rooms" className="font-mono text-[10px] uppercase tracking-wider text-neutral-600 hover:text-neutral-900 transition-colors">
+              [ VAULT ROOMS ]
+            </Link>
             <Link href="/app/shares" className="font-mono text-[10px] uppercase tracking-wider text-neutral-600 hover:text-neutral-900 transition-colors">
               [ MY VAULTS ]
             </Link>
@@ -381,6 +403,18 @@ export default function CreateSharePage() {
                     />
                   </div>
                 )}
+                
+                <div className="mt-4">
+                  <Input
+                    label="MAX RETRIEVAL VIEWS (BLANK = UNLIMITED)"
+                    type="number"
+                    min="1"
+                    placeholder="e.g. 5"
+                    value={maxViews}
+                    onChange={(e) => setMaxViews(e.target.value)}
+                    disabled={isProcessing}
+                  />
+                </div>
               </div>
 
               {/* Access Mode */}

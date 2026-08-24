@@ -76,6 +76,10 @@ interface ShareRow {
   consumed_at: number | null;
   created_at: number;
   allow_comments: number;
+  creator_public_key: string | null;
+  recovery_envelope: string | null;
+  view_count: number;
+  max_views: number | null;
 }
 
 /**
@@ -97,7 +101,10 @@ app.post('/v1/shares', shareCreationLimiter, async (req, res) => {
       fileMeta,
       threshold,
       participantCount,
-      allowComments
+      allowComments,
+      creatorPublicKey,
+      recoveryEnvelope,
+      maxViews
     } = req.body;
 
     if (!shareType || !accessMode || !ciphertext || !nonce || !tag) {
@@ -127,13 +134,18 @@ app.post('/v1/shares', shareCreationLimiter, async (req, res) => {
 
     const burnAfterReading = (expiry === '5m' || expiry === 'burn') ? 1 : 0;
     const allowCommentsVal = allowComments ? 1 : 0;
+    
+    const creatorPublicKeyVal = creatorPublicKey || null;
+    const recoveryEnvelopeVal = recoveryEnvelope || null;
+    const maxViewsVal = maxViews ? parseInt(maxViews, 10) : null;
 
     await dbRun(
       `INSERT INTO shares (
         id, share_type, access_mode, ciphertext, nonce, tag, 
         wrapped_content_key, salt, burn_after_reading, file_meta, 
-        expires_at, consumed_at, created_at, allow_comments
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+        expires_at, consumed_at, created_at, allow_comments,
+        creator_public_key, recovery_envelope, view_count, max_views
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, 0, ?)`,
       [
         shareId,
         shareType,
@@ -147,7 +159,10 @@ app.post('/v1/shares', shareCreationLimiter, async (req, res) => {
         fileMeta ? JSON.stringify(fileMeta) : null,
         expiresAt,
         createdAt,
-        allowCommentsVal
+        allowCommentsVal,
+        creatorPublicKeyVal,
+        recoveryEnvelopeVal,
+        maxViewsVal
       ]
     );
 
@@ -214,7 +229,10 @@ app.get('/v1/shares/:id/config', async (req, res) => {
       submittedCount,
       threshold,
       participantCount,
-      allowComments: share.allow_comments === 1
+      allowComments: share.allow_comments === 1,
+      maxViews: share.max_views,
+      viewCount: share.view_count || 0,
+      recoveryEnvelope: share.recovery_envelope
     });
   } catch (e) {
     console.error(e);
@@ -240,7 +258,17 @@ app.get('/v1/shares/:id', async (req, res) => {
       return res.status(404).send('Share has been burned.');
     }
 
-    if (share.burn_after_reading === 1) {
+    // Increment view count
+    const newViews = (share.view_count || 0) + 1;
+    await dbRun('UPDATE shares SET view_count = ? WHERE id = ?', [newViews, id]);
+
+    let shouldBurn = share.burn_after_reading === 1;
+    if (share.max_views !== null && share.max_views > 0 && newViews >= share.max_views) {
+      shouldBurn = true;
+      console.log(`[SHARE BURNED BY VIEW COUNT LIMIT] ID: ${id}, Views: ${newViews}/${share.max_views}`);
+    }
+
+    if (shouldBurn) {
       await dbRun(
         `UPDATE shares SET 
           consumed_at = ?,
@@ -475,6 +503,215 @@ app.get('/v1/shares/:id/shares', async (req, res) => {
       shareIndex: s.share_index,
       secretShare: s.encrypted_secret_share
     })));
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// Batch stats retrieval for dashboard monitoring
+app.post('/v1/shares/stats', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids)) return res.status(400).send('Invalid IDs parameter.');
+    
+    const results: Record<string, any> = {};
+    await Promise.all(
+      ids.map(async (id) => {
+        const row = await dbGet<any>('SELECT view_count, max_views, consumed_at FROM shares WHERE id = ?', [id]);
+        if (row) {
+          results[id] = {
+            viewCount: row.view_count || 0,
+            maxViews: row.max_views,
+            consumed: row.consumed_at !== null
+          };
+        }
+      })
+    );
+    res.json(results);
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// Recover vaults matching user's public identity key
+app.get('/v1/account/:publicKey/shares', async (req, res) => {
+  try {
+    const { publicKey } = req.params;
+    const rows = await dbAll<any>(
+      'SELECT id, share_type, access_mode, recovery_envelope, created_at FROM shares WHERE creator_public_key = ?',
+      [publicKey]
+    );
+    res.json(rows.map(r => ({
+      id: r.id,
+      shareType: r.share_type,
+      accessMode: r.access_mode,
+      recoveryEnvelope: r.recovery_envelope,
+      createdAt: new Date(r.created_at).toISOString()
+    })));
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// Recover rooms matching user's public identity key
+app.get('/v1/account/:publicKey/rooms', async (req, res) => {
+  try {
+    const { publicKey } = req.params;
+    const rows = await dbAll<any>(
+      'SELECT id, access_mode, recovery_envelope, created_at FROM rooms WHERE creator_public_key = ?',
+      [publicKey]
+    );
+    res.json(rows.map(r => ({
+      id: r.id,
+      accessMode: r.access_mode,
+      recoveryEnvelope: r.recovery_envelope,
+      createdAt: new Date(r.created_at).toISOString()
+    })));
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// Create a new VaultRoom
+app.post('/v1/rooms', async (req, res) => {
+  try {
+    const { accessMode, salt, wrappedRoomKey, nonce, tag, creatorPublicKey, recoveryEnvelope } = req.body;
+    if (!accessMode) return res.status(400).send('Access mode is required.');
+    
+    const roomId = uuidv4();
+    const createdAt = Date.now();
+    
+    await dbRun(
+      `INSERT INTO rooms (
+        id, access_mode, salt, wrapped_room_key, nonce, tag, creator_public_key, recovery_envelope, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        roomId,
+        accessMode,
+        salt || null,
+        wrappedRoomKey || null,
+        nonce || null,
+        tag || null,
+        creatorPublicKey || null,
+        recoveryEnvelope || null,
+        createdAt
+      ]
+    );
+    res.status(201).json({ id: roomId });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// Retrieve room layout configuration details
+app.get('/v1/rooms/:id/config', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const room = await dbGet<any>('SELECT * FROM rooms WHERE id = ?', [id]);
+    if (!room) return res.status(404).send('VaultRoom not found.');
+    
+    res.json({
+      id: room.id,
+      accessMode: room.access_mode,
+      salt: room.salt,
+      wrappedRoomKey: room.wrapped_room_key,
+      nonce: room.nonce,
+      tag: room.tag,
+      createdAt: room.created_at
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// Push encrypted room conversation message
+app.post('/v1/rooms/:id/messages', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { senderHash, ciphertext, nonce, tag } = req.body;
+    if (!senderHash || !ciphertext || !nonce || !tag) {
+      return res.status(400).send('Missing cryptographic parameters.');
+    }
+    
+    const messageId = uuidv4();
+    await dbRun(
+      `INSERT INTO room_messages (id, room_id, sender_hash, ciphertext, nonce, tag, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [messageId, id, senderHash, ciphertext, nonce, tag, Date.now()]
+    );
+    res.status(201).json({ id: messageId });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// Poll encrypted conversation message history
+app.get('/v1/rooms/:id/messages', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const since = parseInt(req.query.since as string, 10) || 0;
+    
+    const rows = await dbAll<any>(
+      'SELECT * FROM room_messages WHERE room_id = ? AND created_at > ? ORDER BY created_at ASC',
+      [id, since]
+    );
+    res.json(rows.map(r => ({
+      id: r.id,
+      senderHash: r.sender_hash,
+      ciphertext: r.ciphertext,
+      nonce: r.nonce,
+      tag: r.tag,
+      createdAt: r.created_at
+    })));
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// Post encrypted attachment file inside room
+app.post('/v1/rooms/:id/attachments', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { ciphertext, nonce, tag, fileMeta } = req.body;
+    if (!ciphertext || !nonce || !tag || !fileMeta) {
+      return res.status(400).send('Missing file envelope parameters.');
+    }
+    
+    const attachmentId = uuidv4();
+    await dbRun(
+      `INSERT INTO room_attachments (id, room_id, ciphertext, nonce, tag, file_meta, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [attachmentId, id, ciphertext, nonce, tag, fileMeta, Date.now()]
+    );
+    res.status(201).json({ id: attachmentId });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// Retrieve encrypted attachment file inside room
+app.get('/v1/rooms/:id/attachments/:attachmentId', async (req, res) => {
+  try {
+    const { attachmentId } = req.params;
+    const row = await dbGet<any>('SELECT * FROM room_attachments WHERE id = ?', [attachmentId]);
+    if (!row) return res.status(404).send('Attachment not found.');
+    
+    res.json({
+      id: row.id,
+      ciphertext: row.ciphertext,
+      nonce: row.nonce,
+      tag: row.tag,
+      fileMeta: row.file_meta
+    });
   } catch (e) {
     console.error(e);
     res.status(500).send('Internal Server Error');

@@ -60,9 +60,45 @@ export function initDb(): Promise<void> {
           created_at BIGINT NOT NULL,
           UNIQUE(share_id, share_index)
         );
+
+        CREATE TABLE IF NOT EXISTS rooms (
+          id VARCHAR(255) PRIMARY KEY,
+          access_mode VARCHAR(50) NOT NULL,
+          salt VARCHAR(255),
+          wrapped_room_key TEXT,
+          nonce VARCHAR(255),
+          tag VARCHAR(255),
+          creator_public_key TEXT,
+          recovery_envelope TEXT,
+          created_at BIGINT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS room_messages (
+          id VARCHAR(255) PRIMARY KEY,
+          room_id VARCHAR(255) NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+          sender_hash VARCHAR(255) NOT NULL,
+          ciphertext TEXT NOT NULL,
+          nonce VARCHAR(255) NOT NULL,
+          tag VARCHAR(255) NOT NULL,
+          created_at BIGINT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS room_attachments (
+          id VARCHAR(255) PRIMARY KEY,
+          room_id VARCHAR(255) NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+          ciphertext TEXT NOT NULL,
+          nonce VARCHAR(255) NOT NULL,
+          tag VARCHAR(255) NOT NULL,
+          file_meta TEXT NOT NULL,
+          created_at BIGINT NOT NULL
+        );
       `)
         .then(async () => {
           await pgPool!.query('ALTER TABLE shares ADD COLUMN IF NOT EXISTS allow_comments INTEGER NOT NULL DEFAULT 0');
+          await pgPool!.query('ALTER TABLE shares ADD COLUMN IF NOT EXISTS creator_public_key TEXT');
+          await pgPool!.query('ALTER TABLE shares ADD COLUMN IF NOT EXISTS recovery_envelope TEXT');
+          await pgPool!.query('ALTER TABLE shares ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0');
+          await pgPool!.query('ALTER TABLE shares ADD COLUMN IF NOT EXISTS max_views INTEGER');
           console.log('✓ PostgreSQL database initialized successfully.');
           resolve();
         })
@@ -133,15 +169,63 @@ export function initDb(): Promise<void> {
             FOREIGN KEY (share_id) REFERENCES shares(id) ON DELETE CASCADE,
             UNIQUE(share_id, share_index)
           )
+        `);
+
+        sqliteDb!.run(`
+          CREATE TABLE IF NOT EXISTS rooms (
+            id TEXT PRIMARY KEY,
+            access_mode TEXT NOT NULL,
+            salt TEXT,
+            wrapped_room_key TEXT,
+            nonce TEXT,
+            tag TEXT,
+            creator_public_key TEXT,
+            recovery_envelope TEXT,
+            created_at INTEGER NOT NULL
+          )
+        `);
+
+        sqliteDb!.run(`
+          CREATE TABLE IF NOT EXISTS room_messages (
+            id TEXT PRIMARY KEY,
+            room_id TEXT NOT NULL,
+            sender_hash TEXT NOT NULL,
+            ciphertext TEXT NOT NULL,
+            nonce TEXT NOT NULL,
+            tag TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
+          )
+        `);
+
+        sqliteDb!.run(`
+          CREATE TABLE IF NOT EXISTS room_attachments (
+            id TEXT PRIMARY KEY,
+            room_id TEXT NOT NULL,
+            ciphertext TEXT NOT NULL,
+            nonce TEXT NOT NULL,
+            tag TEXT NOT NULL,
+            file_meta TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
+          )
         `, (err) => {
           if (err) {
             console.error('Failed to create SQLite tables:', err);
             return reject(err);
           }
-          // Attempt to add the column if it doesn't exist (fails silently if already present)
+          // Run SQLite alter migrations sequentially (ignoring duplicate column errors)
           sqliteDb!.run('ALTER TABLE shares ADD COLUMN allow_comments INTEGER NOT NULL DEFAULT 0', () => {
+          sqliteDb!.run('ALTER TABLE shares ADD COLUMN creator_public_key TEXT', () => {
+          sqliteDb!.run('ALTER TABLE shares ADD COLUMN recovery_envelope TEXT', () => {
+          sqliteDb!.run('ALTER TABLE shares ADD COLUMN view_count INTEGER DEFAULT 0', () => {
+          sqliteDb!.run('ALTER TABLE shares ADD COLUMN max_views INTEGER', () => {
             console.log('✓ SQLite database initialized successfully.');
             resolve();
+          });
+          });
+          });
+          });
           });
         });
       });

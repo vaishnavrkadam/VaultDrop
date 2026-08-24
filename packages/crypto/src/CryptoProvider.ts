@@ -175,6 +175,13 @@ export class CryptoProvider {
   }
 
   /**
+   * Derives a BoxKeyPair from an existing X25519 secret key.
+   */
+  static generateBoxKeyPairFromSecretKey(secretKey: Uint8Array): nacl.BoxKeyPair {
+    return nacl.box.keyPair.fromSecretKey(secretKey);
+  }
+
+  /**
    * Generates a signature (Ed25519) keypair.
    */
   static generateSigningKeyPair(): nacl.SignKeyPair {
