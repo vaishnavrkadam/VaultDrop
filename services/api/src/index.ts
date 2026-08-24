@@ -240,6 +240,21 @@ app.get('/v1/shares/:id', async (req, res) => {
       return res.status(404).send('Share has been burned.');
     }
 
+    if (share.burn_after_reading === 1) {
+      await dbRun(
+        `UPDATE shares SET 
+          consumed_at = ?,
+          ciphertext = '',
+          nonce = '',
+          tag = '',
+          wrapped_content_key = NULL,
+          file_meta = NULL
+        WHERE id = ?`,
+        [Date.now(), id]
+      );
+      console.log(`[SHARE AUTO-BURNED ON RETRIEVAL] ID: ${id}`);
+    }
+
     res.json({
       id: share.id,
       shareType: share.share_type,

@@ -186,7 +186,7 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
       
       const reconstructedCek = await ShamirSSS.combineShares(sharesArray);
       logHUD('✓ CRYPTO: CEK KEY RECONSTRUCTED IN CLIENT MEMORY');
-      await triggerDecryption(reconstructedCek);
+      await triggerDecryption(reconstructedCek, isBurn);
     } catch (e: any) {
       logHUD(`✗ CRYPTO ERROR: CEK RECONSTRUCTION FAILED (${e.message})`);
       setErrorMsg('Reassembling threshold shares failed. Decryption key mismatch.');
@@ -259,7 +259,7 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
       );
       
       logHUD('✓ CRYPTO: CEK UNWRAPPED SUCCESSFULLY');
-      await triggerDecryption(cek);
+      await triggerDecryption(cek, isBurn);
     } catch (e: any) {
       logHUD('✗ CRYPTO ERROR: PASSWORD INCORRECT OR INTEGRITY VIOLATED');
       setErrorMsg('Decryption failed. Please check the password.');
@@ -267,7 +267,7 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
     }
   };
 
-  const triggerDecryption = async (cek: Uint8Array) => {
+  const triggerDecryption = async (cek: Uint8Array, forceBurn?: boolean) => {
     try {
       setErrorMsg('');
       if (!isDecrypting) setIsDecrypting(true);
@@ -326,7 +326,8 @@ export default function ShareViewerPage({ params }: { params: { id: string } }) 
       logHUD('HUD: DATA DECRYPTION COMPLETED');
       
       // 6. If burn-after-reading, trigger consumed signal on server
-      if (isBurn) {
+      const shouldBurn = forceBurn !== undefined ? forceBurn : isBurn;
+      if (shouldBurn) {
         logHUD('NETWORK: VAULT IS BURN-AFTER-READING. CONSUMING ACCESS LEASE...');
         await fetch(`${API_URL}/v1/shares/${shareId}/consume`, { method: 'POST' });
         logHUD('NETWORK: VAULT PERMANENTLY DESTROYED ON SERVER');
