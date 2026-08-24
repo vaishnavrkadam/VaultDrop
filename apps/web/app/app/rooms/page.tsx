@@ -8,6 +8,39 @@ import { CryptoProvider } from '@vaultdrop/crypto';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
+// Browser-safe encoding helpers to avoid Node.js Buffer global dependency
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return window.btoa(binary);
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  const binaryString = window.atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const cleanHex = hex.trim().replace(/^0x/i, '');
+  const bytes = new Uint8Array(cleanHex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(cleanHex.substring(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 interface LocalRoom {
   id: string;
   accessMode: 'anonymous' | 'password';
@@ -56,7 +89,7 @@ export default function RoomsPortalPage() {
 
       // 1. Generate room master key in browser memory
       const roomKey = CryptoProvider.getRandomBytes(32);
-      const roomKeyHex = Buffer.from(roomKey).toString('hex');
+      const roomKeyHex = bytesToHex(roomKey);
       logHUD('✓ CRYPTO: 256-BIT CHAT SYMMETRIC MASTER KEY GENERATED');
 
       let payload: any = { accessMode };
@@ -72,10 +105,10 @@ export default function RoomsPortalPage() {
         logHUD('CRYPTO: SEALING MASTER CHAT KEY WITH PASSWORD ENVELOPE...');
         const { ciphertext, nonce, tag } = await CryptoProvider.encryptAES_GCM(roomKey, derivedKey);
         
-        payload.salt = Buffer.from(salt).toString('hex');
-        payload.wrappedRoomKey = Buffer.from(ciphertext).toString('base64');
-        payload.nonce = Buffer.from(nonce).toString('base64');
-        payload.tag = Buffer.from(tag).toString('base64');
+        payload.salt = bytesToHex(salt);
+        payload.wrappedRoomKey = bytesToBase64(ciphertext);
+        payload.nonce = bytesToBase64(nonce);
+        payload.tag = bytesToBase64(tag);
         logHUD('✓ CRYPTO: WRAPPED KEY ENVELOPE READY');
       }
 
@@ -84,10 +117,10 @@ export default function RoomsPortalPage() {
         const pubHex = localStorage.getItem('vaultdrop_recovery_public_key');
         if (pubHex) {
           logHUD('CRYPTO: ENCRYPTING KEY COPY FOR ACCOUNT RECOVERY ENVELOPE...');
-          const pubBytes = new Uint8Array(Buffer.from(pubHex, 'hex'));
+          const pubBytes = hexToBytes(pubHex);
           const envelopeBytes = CryptoProvider.encryptForRecipient(roomKey, pubBytes);
           payload.creatorPublicKey = pubHex;
-          payload.recoveryEnvelope = Buffer.from(envelopeBytes).toString('base64');
+          payload.recoveryEnvelope = bytesToBase64(envelopeBytes);
           logHUD('✓ CRYPTO: ACCOUNT RECOVERY SYNCHRONIZER ATTACHED');
         }
       }

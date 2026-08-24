@@ -10,6 +10,39 @@ import { FileUp, File, ShieldAlert, Key, Clipboard, Check, RefreshCw } from 'luc
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
+// Browser-safe encoding helpers to avoid Node.js Buffer global dependency
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return window.btoa(binary);
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  const binaryString = window.atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const cleanHex = hex.trim().replace(/^0x/i, '');
+  const bytes = new Uint8Array(cleanHex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(cleanHex.substring(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export default function CreateSharePage() {
   // Navigation / Tabs
   const [shareType, setShareType] = useState<'text' | 'file'>('text');
@@ -103,9 +136,9 @@ export default function CreateSharePage() {
         const metaEncrypted = await CryptoProvider.encryptAES_GCM(metadataEncoder.encode(metaPlaintext), metadataKey);
         
         fileMeta = {
-          name: Buffer.from(metaEncrypted.ciphertext).toString('base64'),
+          name: bytesToBase64(metaEncrypted.ciphertext),
           size: filePayload.size,
-          mime: Buffer.from(metaEncrypted.tag).toString('base64') + ':' + Buffer.from(metaEncrypted.nonce).toString('base64')
+          mime: bytesToBase64(metaEncrypted.tag) + ':' + bytesToBase64(metaEncrypted.nonce)
         };
         
         logHUD('CRYPTO: ENCRYPTING FILE PAYLOAD CHUNKS...');
@@ -132,11 +165,11 @@ export default function CreateSharePage() {
         const wrapped = await CryptoProvider.encryptAES_GCM(cek, derivedPasswordKey);
         // Base64 encode the wrapped key parts
         wrappedContentKey = JSON.stringify({
-          ciphertext: Buffer.from(wrapped.ciphertext).toString('base64'),
-          nonce: Buffer.from(wrapped.nonce).toString('base64'),
-          tag: Buffer.from(wrapped.tag).toString('base64')
+          ciphertext: bytesToBase64(wrapped.ciphertext),
+          nonce: bytesToBase64(wrapped.nonce),
+          tag: bytesToBase64(wrapped.tag)
         });
-        kdfSaltHex = Buffer.from(salt).toString('hex');
+        kdfSaltHex = bytesToHex(salt);
       } else if (accessMode === 'threshold') {
         const m = parseInt(threshold, 10);
         const n = parseInt(participantCount, 10);
@@ -155,19 +188,19 @@ export default function CreateSharePage() {
         const pubHex = localStorage.getItem('vaultdrop_recovery_public_key');
         if (pubHex) {
           logHUD('CRYPTO: ENCRYPTING KEY COPY FOR ACCOUNT RECOVERY ENVELOPE...');
-          const pubBytes = new Uint8Array(Buffer.from(pubHex, 'hex'));
+          const pubBytes = hexToBytes(pubHex);
           const envelopeBytes = CryptoProvider.encryptForRecipient(cek, pubBytes);
           creatorPublicKey = pubHex;
-          recoveryEnvelope = Buffer.from(envelopeBytes).toString('base64');
+          recoveryEnvelope = bytesToBase64(envelopeBytes);
           logHUD('✓ CRYPTO: ACCOUNT RECOVERY SYNCHRONIZER ATTACHED');
         }
       }
 
       // 4. Send to storage server
       logHUD('NETWORK: CONNECTING TO STORAGE API...');
-      const payloadBase64 = Buffer.from(ciphertext).toString('base64');
-      const nonceBase64 = Buffer.from(nonce).toString('base64');
-      const tagBase64 = Buffer.from(tag).toString('base64');
+      const payloadBase64 = bytesToBase64(ciphertext);
+      const nonceBase64 = bytesToBase64(nonce);
+      const tagBase64 = bytesToBase64(tag);
       
       const response = await fetch(`${API_URL}/v1/shares`, {
         method: 'POST',
@@ -211,7 +244,7 @@ export default function CreateSharePage() {
         expiresAt = Date.now() + durationMs;
       }
 
-      const keyHex = Buffer.from(cek).toString('hex');
+      const keyHex = bytesToHex(cek);
 
       // Save metadata locally to list in dashboard
       if (typeof window !== 'undefined') {
@@ -244,7 +277,7 @@ export default function CreateSharePage() {
       let thresholdLinks: string[] = [];
       if (accessMode === 'threshold' && computedShares.length > 0) {
         thresholdLinks = computedShares.map((share, idx) => {
-          const shareHex = Buffer.from(share).toString('hex');
+          const shareHex = bytesToHex(share);
           return `${window.location.origin}/s/${responseData.id}#share=${idx + 1}:${shareHex}`;
         });
       }

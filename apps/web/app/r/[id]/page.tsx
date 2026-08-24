@@ -8,6 +8,39 @@ import { CryptoProvider, ShamirSSS } from '@vaultdrop/crypto';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
+// Browser-safe encoding helpers to avoid Node.js Buffer global dependency
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return window.btoa(binary);
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  const binaryString = window.atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const cleanHex = hex.trim().replace(/^0x/i, '');
+  const bytes = new Uint8Array(cleanHex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(cleanHex.substring(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 interface ChatMessage {
   id: string;
   sender: string;
@@ -96,7 +129,7 @@ export default function ChatRoomPage({ params }: { params: { id: string } }) {
         if (hash.startsWith('#key=')) {
           const keyHex = hash.substring(5);
           if (keyHex.length === 64) {
-            const key = new Uint8Array(Buffer.from(keyHex, 'hex'));
+            const key = hexToBytes(keyHex);
             setRoomKey(key);
             logHUD('✓ CRYPTO: ROOM KEY EXTRACTED FROM CAPABILITY HASH FRAGMENT');
           } else {
@@ -127,16 +160,16 @@ export default function ChatRoomPage({ params }: { params: { id: string } }) {
       if (!res.ok) throw new Error('Failed to retrieve room parameters');
       const data = await res.json();
 
-      const saltBytes = new Uint8Array(Buffer.from(data.salt, 'hex'));
+      const saltBytes = hexToBytes(data.salt);
       const derivedKey = await CryptoProvider.deriveKeyFromPassword(password, saltBytes);
       logHUD('✓ KDF: DECRYPTION KEY DERIVED SUCCESS');
 
       logHUD('CRYPTO: ATTEMPTING ENVELOPE KEY AGREEMENT UNWRAPPING...');
       const decryptedRoomKey = await CryptoProvider.decryptAES_GCM(
-        Buffer.from(data.wrappedRoomKey, 'base64'),
+        base64ToBytes(data.wrappedRoomKey),
         derivedKey,
-        Buffer.from(data.nonce, 'base64'),
-        Buffer.from(data.tag, 'base64')
+        base64ToBytes(data.nonce),
+        base64ToBytes(data.tag)
       );
 
       setRoomKey(decryptedRoomKey);
@@ -172,14 +205,15 @@ export default function ChatRoomPage({ params }: { params: { id: string } }) {
       let maxTime = lastMessageTimeRef.current;
 
       for (const msg of data) {
-        if (msg.createdAt > maxTime) {
-          maxTime = msg.createdAt;
+        const msgTime = Number(msg.createdAt);
+        if (msgTime > maxTime) {
+          maxTime = msgTime;
         }
 
         try {
-          const cipherBytes = Buffer.from(msg.ciphertext, 'base64');
-          const nonceBytes = Buffer.from(msg.nonce, 'base64');
-          const tagBytes = Buffer.from(msg.tag, 'base64');
+          const cipherBytes = base64ToBytes(msg.ciphertext);
+          const nonceBytes = base64ToBytes(msg.nonce);
+          const tagBytes = base64ToBytes(msg.tag);
 
           const decrypted = await CryptoProvider.decryptAES_GCM(cipherBytes, roomKey, nonceBytes, tagBytes);
           const parsed = JSON.parse(new TextDecoder().decode(decrypted));
@@ -190,7 +224,7 @@ export default function ChatRoomPage({ params }: { params: { id: string } }) {
             text: parsed.text,
             isSelf: parsed.sender === nickname,
             fileAttachment: parsed.fileAttachment,
-            createdAt: msg.createdAt
+            createdAt: msgTime
           });
         } catch (decErr) {
           // Message encrypted with a different key, ignore
@@ -226,16 +260,16 @@ export default function ChatRoomPage({ params }: { params: { id: string } }) {
       const { ciphertext, nonce, tag } = await CryptoProvider.encryptAES_GCM(payloadBytes, roomKey);
 
       logHUD('NETWORK: SUBMITTING CIPHERTEXT TO ROOM STREAM...');
-      const senderHash = Buffer.from(CryptoProvider.getRandomBytes(16)).toString('hex'); // pseudo-anonymous sender ID
+      const senderHash = bytesToHex(CryptoProvider.getRandomBytes(16)); // pseudo-anonymous sender ID
 
       const res = await fetch(`${API_URL}/v1/rooms/${roomId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           senderHash,
-          ciphertext: Buffer.from(ciphertext).toString('base64'),
-          nonce: Buffer.from(nonce).toString('base64'),
-          tag: Buffer.from(tag).toString('base64')
+          ciphertext: bytesToBase64(ciphertext),
+          nonce: bytesToBase64(nonce),
+          tag: bytesToBase64(tag)
         })
       });
 
@@ -259,7 +293,7 @@ export default function ChatRoomPage({ params }: { params: { id: string } }) {
       logHUD(`CRYPTO: INITIATING ZERO-KNOWLEDGE ENCRYPTION FOR FILE "${file.name}"...`);
 
       // 1. Generate unique attachment ID
-      const attachmentId = Buffer.from(CryptoProvider.getRandomBytes(16)).toString('hex');
+      const attachmentId = bytesToHex(CryptoProvider.getRandomBytes(16));
 
       // 2. Derive attachment-specific encryption key via HKDF from roomKey
       const attachmentKey = await CryptoProvider.deriveHKDF(roomKey, `vaultdrop/attachment/${attachmentId}`);
@@ -278,9 +312,9 @@ export default function ChatRoomPage({ params }: { params: { id: string } }) {
 
       logHUD('NETWORK: UPLOADING ENCRYPTED FILE TO STORAGE CLOUD...');
       const fileMetaPayload = JSON.stringify({
-        ciphertext: Buffer.from(metaEncrypt.ciphertext).toString('base64'),
-        nonce: Buffer.from(metaEncrypt.nonce).toString('base64'),
-        tag: Buffer.from(metaEncrypt.tag).toString('base64')
+        ciphertext: bytesToBase64(metaEncrypt.ciphertext),
+        nonce: bytesToBase64(metaEncrypt.nonce),
+        tag: bytesToBase64(metaEncrypt.tag)
       });
 
       // Submit attachment
@@ -288,9 +322,9 @@ export default function ChatRoomPage({ params }: { params: { id: string } }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ciphertext: Buffer.from(fileEncrypt.ciphertext).toString('base64'),
-          nonce: Buffer.from(fileEncrypt.nonce).toString('base64'),
-          tag: Buffer.from(fileEncrypt.tag).toString('base64'),
+          ciphertext: bytesToBase64(fileEncrypt.ciphertext),
+          nonce: bytesToBase64(fileEncrypt.nonce),
+          tag: bytesToBase64(fileEncrypt.tag),
           fileMeta: fileMetaPayload
         })
       });
@@ -313,16 +347,16 @@ export default function ChatRoomPage({ params }: { params: { id: string } }) {
       });
       const payloadBytes = new TextEncoder().encode(payloadString);
       const msgEncrypt = await CryptoProvider.encryptAES_GCM(payloadBytes, roomKey);
-      const senderHash = Buffer.from(CryptoProvider.getRandomBytes(16)).toString('hex');
+      const senderHash = bytesToHex(CryptoProvider.getRandomBytes(16));
 
       await fetch(`${API_URL}/v1/rooms/${roomId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           senderHash,
-          ciphertext: Buffer.from(msgEncrypt.ciphertext).toString('base64'),
-          nonce: Buffer.from(msgEncrypt.nonce).toString('base64'),
-          tag: Buffer.from(msgEncrypt.tag).toString('base64')
+          ciphertext: bytesToBase64(msgEncrypt.ciphertext),
+          nonce: bytesToBase64(msgEncrypt.nonce),
+          tag: bytesToBase64(msgEncrypt.tag)
         })
       });
 
@@ -349,10 +383,10 @@ export default function ChatRoomPage({ params }: { params: { id: string } }) {
 
       logHUD('CRYPTO: DECRYPTING RAW PAYLOAD CHUNKS IN CLIENT MEMORY...');
       const decrypted = await CryptoProvider.decryptAES_GCM(
-        Buffer.from(data.ciphertext, 'base64'),
+        base64ToBytes(data.ciphertext),
         attachmentKey,
-        Buffer.from(data.nonce, 'base64'),
-        Buffer.from(data.tag, 'base64')
+        base64ToBytes(data.nonce),
+        base64ToBytes(data.tag)
       );
 
       logHUD('SYSTEM: WRITING BLOB AND TRIGGERING DOWNLOAD...');
