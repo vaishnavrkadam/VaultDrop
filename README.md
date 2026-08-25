@@ -2,7 +2,7 @@
 
 Zero-knowledge, privacy-first secure sharing utility for text, source code, and arbitrary files with E2E encrypted rooms and multi-party cryptographic escrow.
 
-[Demo](https://vaultdrop.vercel.app) [Video](https://github.com/vaishnavrkadam/VaultDrop/raw/main/Resources/Ledger%20Brandbook%20-%20Brave%202026-08-21%2015-12-21.mp4) [Repository](https://github.com/vaishnavrkadam/VaultDrop)
+[Demo](https://vault-drop-web-six.vercel.app) [Repository](https://github.com/vaishnavrkadam/VaultDrop)
 
 ## Overview
 VaultDrop is a modern, privacy-first, zero-knowledge platform designed for securely sharing sensitive text, source code, documents, and arbitrary files online. Drawing conceptual inspiration from PrivateBin, VaultDrop reimagines file-sharing security by treating the storage server as entirely untrusted infrastructure. It is built on a contemporary NPM workspaces monorepo architecture, combining a Next.js 14 frontend web app with a TypeScript Express backend and dedicated, auditable libraries.
