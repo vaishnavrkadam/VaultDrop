@@ -30,7 +30,6 @@ VaultDrop separates the trusted client domain from untrusted server infrastructu
 * **M-of-N Cryptographic Escrow**: Split the content encryption key (CEK) into \(N\) Shamir shares, requiring \(M\) participants to reconstruct it.
 * **Identity Key Sync & Recovery**: Secure account recovery using client-side identity key agreement (X25519) and envelope synchronization.
 * **Physical Shredding & Erasure**: Cascading SQLite/PostgreSQL foreign key constraints to physically delete all comments and ciphertexts upon revocation.
-* **Protected Viewing Mode**: Best-effort screenshot deterrent featuring dynamic repeating watermarks, session identifiers, and blur controls.
 
 ## Accessibility
 ### Accessibility Goals
@@ -198,7 +197,6 @@ vaultdrop-monorepo/
 ├── packages/
 │   ├── crypto/              # Cryptographic Library (Web Crypto & TweetNaCl)
 │   └── ui/                  # Shared Tailwind CSS React components
-├── Resources/               # Design specs, scheme definitions, and assets
 ├── package.json             # Monorepo workspaces definition
 └── README.md                # Project documentation
 ```
@@ -214,13 +212,10 @@ vaultdrop-monorepo/
 * **Enterprise HSM Support**: Integrating Hardware Security Modules for organizational recovery trustee setups.
 
 ## Team
-* **Vaishnav R. Kadam** - Creator & Principal Lead Developer
-* **Antigravity AI** - Senior Architectural Code Partner
-
-## Credits
-* **PrivateBin Team**: For outlining the zero-knowledge pastebin paradigm.
-* **Hash-WASM Developers**: For robust, browser-based WebAssembly cryptographic components.
-* **TweetNaCl Contributors**: For reliable asymmetric primitives in JavaScript.
+* **Vaishnav**
+* **Hemanth**
+* **Rohan**
+* **Babu**
 
 ## License
 VaultDrop is open-source software licensed under the [MIT License](LICENSE).
